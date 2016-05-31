@@ -1,5 +1,6 @@
 Require Import Coq.Strings.String.
 Require Import Coq.Reals.Reals.
+Require Import Coq.micromega.Psatz.
 Require Import Coq.Logic.FunctionalExtensionality.
 (** Since dL's logic is classical, we include Coq's axiomatization of classical
  ** logic. In practice, we find that constructive encodings are generally
@@ -65,11 +66,18 @@ Instance Applicative_StateVal : Applicative StateVal :=
 Definition plus (a b : StateVal R) : StateVal R :=
   pure Rplus <$> a <$> b.
 
+Notation "a [+] b" := (plus a b) (at level 30).
+
 Definition mult (a b : StateVal R) : StateVal R :=
   pure Rmult <$> a <$> b.
 
 Definition geq (a b : StateVal R) : StateProp :=
   pure Rge <$> a <$> b.
+
+Definition leq (a b : StateVal R) : StateProp :=
+  pure Rge <$> a <$> b.
+
+Notation "a [<=] b" := (leq a b) (at level 30).
 
 (** In addition to combining values, we can also extract values from the state.
  **)
@@ -113,6 +121,25 @@ Definition test (t : StateProp) : ActionProp :=
   fun st st' => st = st' /\ t st'.
 
 Notation "? e" := (test e) (at level 30).
+
+(** Continuous transitions. *)
+(** We encode flows using arbitrary predicates [dF] over the values of variables
+    and their derivatives. *)
+Definition Flow : Type := state -> state -> Prop.
+(** Flows also form a logic, which allows us to, e.g. conjoint them. *)
+Instance ILogic_Flow : ILogic Flow := _.
+
+(** This gives the semantic definition of a continuous evolution
+    subject to a flow. *)
+Definition evolve (dF : Flow) : ActionProp :=
+  fun st st' =>
+    exists (r : R) (F : R -> state)
+           (* derivable states that derivatives exists for all variables
+              at all times from 0 to r. *)
+           (derivable : forall (x : var) (t : R), derivable_pt (fun t => F t x) t),
+      0 <= r /\ F 0 = st /\ F r = st' /\
+      forall t, 0 <= t <= r ->
+                dF (F t) (fun x => derive_pt (fun t => F t x) t (derivable x t)).
 
 (** Choice *)
 Definition choice (a b : ActionProp) : ActionProp :=
@@ -177,7 +204,7 @@ Definition Subst (x : var) (e : StateVal R) T (X : StateVal T) : StateVal T :=
 Arguments Subst _ _ [_] _ _. (* The [T] argument in [Subst] is implicit. *)
 Notation "p [ x <- e ]" := (Subst x e p) (at level 30).
 
-(* Discrete proof rules. *)
+(** Discrete proof rules *)
 
 Theorem assign_rule :
   forall (x : var) (e : StateVal R) (p : StateProp),
@@ -241,7 +268,43 @@ Theorem G_rule :
     |-- [[a]]p.
 Proof. compute; auto. Qed.
 
-(* Substitution rules. *)
+(** Continuous proof rules *)
+
+Theorem differential_weakening :
+  forall (dF : Flow) (P : StateProp),
+    |-- [[evolve (dF //\\ (fun st _ => P st))]]P.
+Proof.
+  cbv beta iota delta - [Rle derive_pt derivable_pt].
+  intros. destruct H0 as [r [F [pf H0] ] ].
+  destruct H0 as [Hr [HF0 [HFr HFt] ] ].
+  specialize (HFt r). assert (0 <= r <= r) by psatzl R.
+  intuition congruence.
+Qed.
+
+Theorem differential_cut :
+  forall (dF : Flow) (R P : StateProp),
+    [[evolve dF]]R //\\ [[evolve (dF //\\ (fun st _ => R st))]]P |-- [[evolve dF]]P.
+Proof.
+  cbv beta iota delta - [Rle derive_pt derivable_pt].
+  intros. destruct H as [HR HRP]. apply HRP.
+  destruct H0 as [r [F [pf H0] ] ]. exists r. exists F.
+  exists pf. repeat split; try tauto.
+  { intuition. }
+  { apply HR. exists t0. exists F. exists pf. repeat split; try tauto.
+    intros. apply H0. split; try tauto. destruct H. eapply Rle_trans; eauto.
+    tauto. }
+Qed.
+
+(** Need to figure out how to phrase differential induction. *)
+(*
+Theorem differential_induction_leq :
+  forall (dF : Flow) (e1 e2 : StateVal R),
+        Forall st' : state, (fun st => dF st st') -->> (e1 [<=] e2) //\\
+        
+    |-- [[evolve dF]](e1 [<=] e2).
+*)
+
+(** Substitution rules *)
 
 Lemma Subst_ap :
   forall T U (a : StateVal (T -> U)) (b : StateVal T)
