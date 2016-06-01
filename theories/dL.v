@@ -192,6 +192,9 @@ Definition evolve (dF : Flow) (I : StateProp) : ActionProp :=
 
 Notation "d & I" := (evolve d I) (at level 80).
 
+Notation "'d[' x ']'" := (mkFlowVal (fun _ st' => st' x)) (at level 30).
+Notation "'#[' e ']'" := (mkFlowVal (fun st _ => e st)) (at level 30).
+
 (** Choice *)
 Definition choice (a b : ActionProp) : ActionProp :=
   mkActionVal (fun st st' => a st st' \/ b st st').
@@ -362,11 +365,10 @@ Definition D_state_val (e : StateVal R) (e' : FlowVal R) : Prop :=
 Theorem differential_induction_leq :
   forall (dF : Flow) (I : StateProp)
          (e1 e2 : StateVal R) (e1' e2' : FlowVal R),
-        (D_state_val e1 e1') ->
-        (D_state_val e2 e2') ->
-        dF |-- e1' [<=] e2' ->
-        (I -->> (e1 [<=] e2))
-    |-- [[dF & I]](e1 [<=] e2).
+    (D_state_val e1 e1') ->
+    (D_state_val e2 e2') ->
+    dF |-- e1' [<=] e2' ->
+    I -->> (e1 [<=] e2) |-- [[dF & I]](e1 [<=] e2).
 Proof.
   destruct dF as [dF]. destruct I as [I]. destruct e1 as [e1].
   destruct e2 as [e2]. destruct e1' as [e1']. destruct e2' as [e2'].
@@ -391,6 +393,39 @@ Proof.
       apply H1 in H6. psatzl R. }
     { subst. psatzl R. } }
   { subst. intuition; psatzl R. }
+Qed.
+
+Theorem D_state_val_var :
+  forall (x : var),
+    D_state_val (get x) (d[x]).
+Proof.
+  unfold D_state_val, get. simpl. intros.
+  exists (derivable_f x). reflexivity.
+Qed.
+
+Theorem D_state_val_plus :
+  forall (e1 e2 : StateVal R) (e1' e2' : FlowVal R),
+    D_state_val e1 e1' ->
+    D_state_val e2 e2' ->
+    D_state_val (e1 [+] e2) (e1' [+] e2').
+Proof.
+  unfold D_state_val, get. simpl. intros.
+  specialize (H f derivable_f). specialize (H0 f derivable_f).
+  destruct H. destruct H0. unfold derivable. eexists.
+  intros. rewrite <- H. rewrite <- H0. apply derive_pt_plus.
+Qed.
+
+Theorem D_state_val_mult :
+  forall (e1 e2 : StateVal R) (e1' e2' : FlowVal R),
+    D_state_val e1 e1' ->
+    D_state_val e2 e2' ->
+    D_state_val (e1 [*] e2) ((e1' [*] #[e2]) [+] (#[e1] [*] e2')).
+Proof.
+  unfold D_state_val, get. simpl. intros.
+  specialize (H f derivable_f). specialize (H0 f derivable_f).
+  destruct H. destruct H0. unfold derivable. eexists.
+  intros. rewrite <- H. rewrite <- H0.
+  apply derive_pt_mult with (f1:=fun t => e1 (f t)) (f2:=fun t => e2 (f t)).
 Qed.
 
 (** Substitution rules *)
