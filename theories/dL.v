@@ -10,139 +10,32 @@ Require Import Coq.Logic.FunctionalExtensionality.
 Require Import Coq.Logic.ClassicalFacts.
 Require Import ExtLib.Structures.Applicative.
 Require Import ChargeCore.Logics.ILogic.
+Require Import ChargeCore.Logics.ILogicIso.
+Require Import ChargeCore.Tactics.Tactics.
 Require ChargeCore.Logics.ILInsts.
+Require Import dL.Logics.
 Transparent ILInsts.ILFun_Ops.
 
-(* TODO: move to Charge Core. *)
-Section from_iso.
-Context {T U : Type} (f : T -> U) (g : U -> T) (ilo : ILogicOps T).
-Local Instance ILogicOps_iso : ILogicOps U :=
-{| lentails := fun l r => lentails (g l) (g r)
- ; ltrue := f ltrue
- ; lfalse := f lfalse
- ; land := fun l r => f (land (g l) (g r))
- ; lor := fun l r => f (lor (g l) (g r))
- ; limpl := fun l r => f (limpl (g l) (g r))
- ; lforall := fun T P => f (lforall (fun x => g (P x)))
- ; lexists := fun T P => f (lexists (fun x => g (P x)))
- |}.
+Local Open Scope R.
+Local Open Scope string_scope.
 
-Context {il : ILogic T}.
-Hypothesis gf : forall x, g (f x) -|- x.
-Require Import ChargeCore.Tactics.Tactics.
-Instance ILogic_iso : ILogic U.
-constructor; simpl; intros; repeat rewrite gf in *.
-{ constructor.
-  { red; simpl; intros; reflexivity. }
-  { red; simpl; intros. etransitivity; eassumption. } }
-all: try charge_tauto.
-apply lfalseL.
-eapply lforallL; eauto.
-eapply lforallR; eauto.
-eapply lexistsL; eauto.
-eapply lexistsR; eauto.
-apply lorL; eauto.
-Defined.
-End from_iso.
-Arguments ILogic_iso {_ _} [_ _ _] {_} _.
-
-Hint Extern 10 (@ILogic _ _) => (eapply ILogic_iso ; [ eauto with typeclass_instances | intro; reflexivity ]) : typeclass_instances.
-
-(** Notation for applicative functors *)
-Notation "x <$> y" := (ap x y) (at level 30).
-
-
-(** Represent variables as strings *)
-Definition var : Type := string.
-
-(** States are functions from variables to real numbers.
- ** By changing these definitions, we can support other
- ** types, e.g. floating point numbers, integers, etc.
- **
- ** NOTE: There are two reasonable ways to do this:
- ** 1/ Users declare a Coq type specifying the state that
- **    they want, e.g. using a record.
- ** 2/ Use the extensible records library which constructs
- **    canonical extensible records for arbitrary sets of
- **    fields identified by strings.
- **
- ** Both of these solutions are much better than the [var -> R]
- ** solution because they allow multiple types and they support
- ** "small states", i.e. states without extraneous variables.
+(** First, we define some notation to lift standard operators into
+ ** the various logics.
  **)
-Definition state : Type := var -> R.
+Notation "a [+] b" := (pure Rplus <$> a <$> b) (at level 50, left associativity).
+Notation "a [*] b" := (pure Rmult <$> a <$> b) (at level 40, left associativity).
+Notation "a [>=] b" := (pure Rge <$> a <$> b) (at level 70, right associativity).
+Notation "a [<=] b" := (pure Rle <$> a <$> b) (at level 70, right associativity).
+Notation "a [=] b" := (pure (@eq R) <$> a <$> b) (at level 70, right associativity).
 
-(** [StateVal T] represents a value of type [T] which might
- ** depend on the current state.
+(** We can also extract values from the state.
  **)
-Record StateVal (T : Type) : Type := mkStateVal
-{ unStateVal : state -> T }.
-Arguments mkStateVal [_] _.
-Arguments unStateVal [_] _ _.
-Coercion unStateVal : StateVal >-> Funclass.
-(** [StateProp] is the type of predicates over a single state.
- **)
-Definition StateProp := StateVal Prop.
-(** The following two instances state that
- ** [StateProp] forms an intuitionistic logic. This declaration
- ** provides operations such as:
- ** - ltrue (True), lfalse (False)
- ** - a //\\ b (conjunction), a \\// b (disjunction), a -->> b (implication)
- ** - lforall (fun x => P x) (universal quantification)
- ** - lexists (fun x => P x) (existential quantification)
- **)
-Instance ILogicOps_StateProp : ILogicOps StateProp :=
-  ILogicOps_iso (@mkStateVal _) (@unStateVal _) _.
-Instance ILogic_StateProp : ILogic StateProp := _.
-
-(** StateVal forms an applicative functor, which basically means that
- ** we can lift pure operations to operations over StateVals.
- **)
-Instance Applicative_StateVal : Applicative StateVal :=
-{ pure := fun _ x => mkStateVal (fun _ => x)
-; ap   := fun _ _ f x => mkStateVal (fun st => f st (x st)) }.
-
-(** For example, we can lift addition and multiplication using the following
- ** definitions.
- **)
-Notation "a [+] b" := (pure Rplus <$> a <$> b) (at level 30).
-Notation "a [*] b" := (pure Rmult <$> a <$> b) (at level 30).
-Notation "a [>=] b" := (pure Rge <$> a <$> b) (at level 30).
-Notation "a [<=] b" := (pure Rle <$> a <$> b) (at level 30).
-
-(** In addition to combining values, we can also extract values from the state.
- **)
-
 Definition get (x : var) : StateVal R :=
   mkStateVal (fun st => st x).
 
-(** [ActionVal T] represents a value of type [T] which might
- ** depend on either the pre-state or the post-state. Normally,
- ** this is used for stating predicates between two related states.
- **)
-Record ActionVal (T : Type) : Type := mkActionVal
-  { unActionVal : state -> state -> T }.
-Arguments mkActionVal [_] _.
-Arguments unActionVal [_] _ _ _.
-Coercion unActionVal : ActionVal >-> Funclass.
-(** [ActionProp] represents a predicate over two states, e.g. a transition
- ** relation.
- **)
-Definition ActionProp := ActionVal Prop.
-(** We derive a logic in the same way as above. *)
-Instance ILogicOps_ActionProp : ILogicOps ActionProp :=
-  ILogicOps_iso (@mkActionVal _) (@unActionVal _) _.
-Instance ILogic_ActionProp : ILogic ActionProp := _.
-
-Instance Applicative_ActionVal : Applicative ActionVal :=
-{ pure := fun _ x => mkActionVal (fun _ _ => x)
-; ap   := fun _ _ f x => mkActionVal (fun st st' => f st st' (x st st')) }.
-
-Local Open Scope R.
 
 (** This begins the core definitions for the dL language.
  **)
-
 Definition state_set (x : var) (e : R) (st : state) : state :=
   fun y => if string_dec y x then e else st y.
 
@@ -150,35 +43,24 @@ Definition state_set (x : var) (e : R) (st : state) : state :=
 Definition assign (x : var) (e : StateVal R) : ActionProp :=
   mkActionVal (fun st st' => st' = state_set x (e st) st).
 
-Notation "x ::= e" := (assign x e) (at level 80).
+Notation "x ::= e" := (assign x e) (at level 80, e at level 70).
+
+(** Non-deterministic assignment *)
+Definition nondet_assign (x : var) : ActionProp :=
+  mkActionVal (fun st st' => exists (v : R), st' = state_set x v st).
+
+Notation "x ::= ***" := (nondet_assign x) (at level 80).
 
 (** Test *)
 Definition test (t : StateProp) : ActionProp :=
   mkActionVal (fun st st' => st = st' /\ t st').
 
-Notation "? e" := (test e) (at level 80).
+Notation "? e" := (test e) (at level 80, e at level 70).
 
 (** Continuous transitions. *)
-(** We encode flows using arbitrary predicates [dF] over the values of variables
-    and their derivatives. *)
-Record FlowVal (T : Type) : Type := mkFlowVal
-{ unFlowVal : state -> state -> T }.
-Arguments mkFlowVal [_] _.
-Arguments unFlowVal [_] _ _ _.
-Coercion unFlowVal : FlowVal >-> Funclass.
-Definition Flow : Type := FlowVal Prop.
-(** Flows also form a logic, which allows us to, e.g. conjoint them. *)
-Instance ILogicOps_Flow : ILogicOps Flow :=
-  ILogicOps_iso (@mkFlowVal _) (@unFlowVal _) _.
-Instance ILogic_Flow : ILogic Flow := _.
-
-Instance Applicative_FlowVal : Applicative FlowVal :=
-{ pure := fun _ x => mkFlowVal (fun _ _ => x)
-; ap   := fun _ _ f x => mkFlowVal (fun st st' => f st st' (x st st')) }.
-
 (** This gives the semantic definition of a continuous evolution
-    subject to a flow. *)
-Definition evolve (dF : Flow) (I : StateProp) : ActionProp :=
+    subject to a flow [dF] and an evolution constraint [I]. *)
+Definition evolve (dF : FlowProp) (I : StateProp) : ActionProp :=
   mkActionVal
     (fun st st' =>
        exists (r : R) (F : R -> state)
@@ -190,8 +72,8 @@ Definition evolve (dF : Flow) (I : StateProp) : ActionProp :=
                    dF (F t) (fun x => derive_pt (fun t => F t x) t (derivable x t)) /\
                    I (F t)).
 
-Notation "d & I" := (evolve d I) (at level 80).
-
+Notation "d & I" := (evolve d I) (at level 80, I at level 79).
+Print Grammar constr.
 Notation "'d[' x ']'" := (mkFlowVal (fun _ st' => st' x)) (at level 30).
 Notation "'#[' e ']'" := (mkFlowVal (fun st _ => e st)) (at level 30).
 
@@ -205,7 +87,7 @@ Notation "a '+++' b" := (choice a b) (at level 80).
 Definition seq (a b : ActionProp) : ActionProp :=
   mkActionVal (fun st st' => exists st'', a st st'' /\ b st'' st').
 
-Notation "a ;; b" := (seq a b) (at level 80).
+Notation "a ;; b" := (seq a b) (at level 90, right associativity).
 
 (** Star *)
 Inductive star' (a : ActionProp) (st : state) : state -> Prop :=
@@ -234,6 +116,13 @@ Notation "! p" := (p -->> lfalse) (at level 30, p at level 30).
  ** "implies false".
  **)
 
+(** This ends the core definitions in the logic.
+ ** Now we state and prove a range of proof rules.
+ ** - The theorems roughly follow the presentation from the
+ **   uniform substitution paper; however, they are reusing
+ **   Coq's logic to do substitution rather than formalizing
+ **   it separately.
+ **)
 
 (** This proof shows the connection between diamond and box. *)
 Theorem diamond_box :
@@ -268,6 +157,16 @@ Proof.
   destruct e. destruct p.
   cbv beta iota delta - [string_dec]. split; intros; eauto.
   subst; auto.
+Qed.
+
+Theorem nondet_assign_rule :
+  forall (x : var) (P : StateProp),
+    [[x ::= ***]]P -|- Forall v : R, P [x <- pure v].
+Proof.
+  destruct P. cbv beta iota delta - [string_dec].
+  split; intros.
+  { eapply H. eauto. }
+  { destruct H0. subst. eauto. }
 Qed.
 
 Theorem test_rule :
@@ -305,8 +204,9 @@ Qed.
 
 Theorem star_I :
   forall (a : ActionProp) (p : StateProp),
-    |-- [[a^*]](p -->> [[a]]p) -->> (p -->> [[a^*]]p).
+    [[a^*]](p -->> [[a]]p) //\\ p |-- [[a^*]]p.
 Proof.
+  intros. do 2 charge_revert.
   compute. intros. induction H2.
   { assumption. }
   { apply IHstar'.
@@ -328,7 +228,7 @@ Proof. destruct p. compute; auto. Qed.
 (** Continuous proof rules *)
 
 Theorem differential_weakening :
-  forall (dF : Flow) (P : StateProp),
+  forall (dF : FlowProp) (P : StateProp),
     |-- [[dF & P]]P.
 Proof.
   cbv beta iota delta - [Rle derive_pt derivable_pt].
@@ -339,7 +239,7 @@ Proof.
 Qed.
 
 Theorem differential_cut :
-  forall (dF : Flow) (Q C P : StateProp),
+  forall (dF : FlowProp) (Q C P : StateProp),
     [[dF & Q]]C //\\ [[dF & Q //\\ C]]P |-- [[dF & Q]]P.
 Proof.
   destruct dF as [ dF ]. destruct Q as [Q]. destruct C as [C]. destruct P as [P].
@@ -353,6 +253,7 @@ Proof.
     intros. apply H0. psatzl R. }
 Qed.
 
+(** [D_state_val e e'] states that [e'] is the derivative of [e]. *)
 Definition D_state_val (e : StateVal R) (e' : FlowVal R) : Prop :=
   forall (f : R -> state)
          (derivable_f : forall (x : var), derivable (fun t => f t x)),
@@ -363,7 +264,7 @@ Definition D_state_val (e : StateVal R) (e' : FlowVal R) : Prop :=
 
 (** Differential induction. *)
 Theorem differential_induction_leq :
-  forall (dF : Flow) (I : StateProp)
+  forall (dF : FlowProp) (I : StateProp)
          (e1 e2 : StateVal R) (e1' e2' : FlowVal R),
     (D_state_val e1 e1') ->
     (D_state_val e2 e2') ->
@@ -403,6 +304,16 @@ Proof.
   exists (derivable_f x). reflexivity.
 Qed.
 
+Theorem D_state_val_pure :
+  forall (x : R),
+    D_state_val (pure x) (pure 0).
+Proof.
+  unfold D_state_val, pure. simpl. intros.
+  exists (derivable_pt_const x).
+  intros. rewrite <- (derive_pt_const x t).
+  reflexivity.
+Qed.
+
 Theorem D_state_val_plus :
   forall (e1 e2 : StateVal R) (e1' e2' : FlowVal R),
     D_state_val e1 e1' ->
@@ -427,6 +338,19 @@ Proof.
   intros. rewrite <- H. rewrite <- H0.
   apply derive_pt_mult with (f1:=fun t => e1 (f t)) (f2:=fun t => e2 (f t)).
 Qed.
+
+(** Using Ltac (Coq's tactic language) we can build automation to
+ ** automatically construct derivatives using these rules.
+ **)
+Ltac prove_derive :=
+  repeat first [ simple eapply D_state_val_var
+               | simple eapply D_state_val_plus
+               | simple eapply D_state_val_mult
+               | simple eapply D_state_val_pure
+               ].
+
+Ltac differential_induction :=
+  etransitivity; [ | eapply differential_induction_leq; [ try prove_derive | try prove_derive | ] ].
 
 (** Substitution rules *)
 
@@ -461,3 +385,94 @@ Proof.
   f_equal. apply functional_extensionality. intros.
   destruct (string_dec x y); congruence.
 Qed.
+
+Definition Subst_ActionVal (x : var) (e : StateVal R) T (X : ActionVal T) : ActionVal T :=
+  mkActionVal (fun st st' => X (state_set x (e st) st) st').
+Arguments Subst_ActionVal _ _ [_] _. (* The [T] argument in [Subst] is implicit. *)
+Notation "p [ x <-- e ]" := (Subst_ActionVal x e p) (at level 30).
+
+(*
+Lemma Subst_box :
+  forall (a : ActionProp) (P G : StateProp) (x : var) (e : StateVal R),
+    G |-- get x [=] e -->> [[a]] P ->
+    G[x <- e] |-- ([[a]]P)[x <- e].
+Proof.
+  destruct a as [a]. destruct P as [P]. destruct e as [e].
+  destruct G as [G].
+  unfold box, Subst. simpl; intros. eapply H in H0; eauto.
+  unfold state_set. dest
+  { admit. }
+  { 
+
+
+Lemma Subst_box :
+  forall (a : ActionProp) (P : StateProp) (x : var) (e : StateVal R),
+    ([[a]]P)[x <- e] -|- [[?(get x) [=] e;; a]] P.
+Proof.
+  destruct a as [a]. destruct P as [P]. destruct e as [e].
+  unfold box, test, seq, Subst. split; simpl; intros.
+  { apply H. destruct H0. destruct H0. destruct H0. subst t.
+    assert (x0 = state_set x (e x0) x0).
+    { apply functional_extensionality; intro. unfold state_set.
+      destruct (string_dec x1 x).
+      { subst. assumption. }
+      { reflexivity. } }
+    rewrite <- H0. assumption. }
+  { apply H. exists ((state_set x (e t) t)).
+
+*)
+
+Lemma Subst_box :
+  forall (a : ActionProp) (P : StateProp) (x : var) (e : StateVal R),
+    ([[a]]P)[x <- e] = [[a[x <-- e] ]]P.
+Proof. reflexivity. Qed.
+
+Lemma Subst_assign :
+  forall (x y : var) (e1 e2 : StateVal R),
+    (x ::= e1)[y <-- e2] = (x ::= (e1[y <- e2])).
+Proof.
+  destruct e1 as [e1]. destruct e2 as [e2].
+  unfold Subst, Subst_ActionVal, assign.
+  simpl. f_equal. apply functional_extensionality.
+  intro. apply functional_extensionality. intro.
+  unfold state_set. f_equal. apply functional_extensionality.
+  intro. destruct (string_dec x2 x).
+  { reflexivity. }
+  { destruct (string_dec x2 y).
+    {  subst
+  
+
+
+(** Here's a *very* simple example of using dL
+ **)
+Section Simple.
+
+  Variable V : R.
+  Variable d : R.
+
+  Definition safe : StateProp :=
+    get "v" [<=] pure V.
+
+  Definition ctrl : ActionProp :=
+    "a" ::= ***;;
+     ? get "v" [+] get "a"[*]pure d [<=] pure V;;
+    "t" ::= pure 0.
+
+  Definition plant : ActionProp :=
+    d["v"] [=] #[get "a"] //\\ d["t"] [=] pure 1 & get "t" [<=] pure d.
+
+  Theorem example :
+    |-- safe -->> [[(ctrl;; plant)^*]]safe.
+  Proof.
+    intros. charge_intros. rewrite <- star_I.
+    charge_split.
+    { charge_clear. apply G_rule. charge_intro.
+      unfold ctrl. repeat rewrite seq_rule.
+      rewrite nondet_assign_rule. charge_intro.
+Check seq_rule.
+      rewrite seq_rule.
+      { admit. }
+      { 
+        { reflexivity. }
+
+End Simple.

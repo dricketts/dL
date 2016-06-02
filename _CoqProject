@@ -1,3 +1,4 @@
 -Q theories dL
 
+./theories/Logics.v
 ./theories/dL.v
