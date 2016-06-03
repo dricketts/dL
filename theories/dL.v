@@ -23,6 +23,7 @@ Local Open Scope string_scope.
  ** the various logics.
  **)
 Notation "a [+] b" := (pure Rplus <$> a <$> b) (at level 50, left associativity).
+Notation "a [-] b" := (pure Rminus <$> a <$> b) (at level 50, left associativity).
 Notation "a [*] b" := (pure Rmult <$> a <$> b) (at level 40, left associativity).
 Notation "a [>=] b" := (pure Rge <$> a <$> b) (at level 70, right associativity).
 Notation "a [<=] b" := (pure Rle <$> a <$> b) (at level 70, right associativity).
@@ -184,6 +185,11 @@ Theorem choice_rule :
     [[a +++ b]]p -|- [[a]]p //\\ [[b]]p.
 Proof. compute; firstorder. Qed.
 
+Theorem box_land :
+  forall (a : ActionProp) (p q : StateProp),
+    [[a]](p //\\ q) -|- [[a]]p //\\ [[a]]q.
+Proof. compute; firstorder. Qed.
+
 Theorem seq_rule :
   forall (a b : ActionProp) (p : StateProp),
     [[a ;; b]]p -|- [[a]][[b]]p.
@@ -224,6 +230,12 @@ Theorem G_rule :
     |-- p ->
     |-- [[a]]p.
 Proof. destruct p. compute; auto. Qed.
+
+Theorem box_monotone :
+  forall (a : ActionProp) (p q : StateProp),
+    p |-- q ->
+    [[a]]p |-- [[a]]q.
+Proof. compute; firstorder. Qed.
 
 (** Continuous proof rules *)
 
@@ -268,7 +280,7 @@ Theorem differential_induction_leq :
          (e1 e2 : StateVal R) (e1' e2' : FlowVal R),
     (D_state_val e1 e1') ->
     (D_state_val e2 e2') ->
-    dF |-- e1' [<=] e2' ->
+    dF //\\ #[I] |-- e1' [<=] e2' ->
     I -->> (e1 [<=] e2) |-- [[dF & I]](e1 [<=] e2).
 Proof.
   destruct dF as [dF]. destruct I as [I]. destruct e1 as [e1].
@@ -289,7 +301,7 @@ Proof.
       rewrite derive_pt_minus
       with (f1:=fun t => e2 (f t)) (f2:=fun t => e1 (f t)).
       rewrite H. rewrite H0.
-      assert (dF (f t0) (fun x1 : var => derive_pt (fun t1 : R => f t1 x1) t0 (pf x1 t0))).
+      assert (dF (f t0) (fun x1 : var => derive_pt (fun t1 : R => f t1 x1) t0 (pf x1 t0)) /\ I (f t0)).
       { apply HdF; psatzl R. }
       apply H1 in H6. psatzl R. }
     { subst. psatzl R. } }
@@ -326,6 +338,18 @@ Proof.
   intros. rewrite <- H. rewrite <- H0. apply derive_pt_plus.
 Qed.
 
+Theorem D_state_val_minus :
+  forall (e1 e2 : StateVal R) (e1' e2' : FlowVal R),
+    D_state_val e1 e1' ->
+    D_state_val e2 e2' ->
+    D_state_val (e1 [-] e2) (e1' [-] e2').
+Proof.
+  unfold D_state_val, get. simpl. intros.
+  specialize (H f derivable_f). specialize (H0 f derivable_f).
+  destruct H. destruct H0. unfold derivable. eexists.
+  intros. rewrite <- H. rewrite <- H0. apply derive_pt_minus.
+Qed.
+
 Theorem D_state_val_mult :
   forall (e1 e2 : StateVal R) (e1' e2' : FlowVal R),
     D_state_val e1 e1' ->
@@ -345,6 +369,7 @@ Qed.
 Ltac prove_derive :=
   repeat first [ simple eapply D_state_val_var
                | simple eapply D_state_val_plus
+               | simple eapply D_state_val_minus
                | simple eapply D_state_val_mult
                | simple eapply D_state_val_pure
                ].
@@ -386,6 +411,7 @@ Proof.
   destruct (string_dec x y); congruence.
 Qed.
 
+(*
 Definition Subst_ActionVal (x : var) (e : StateVal R) T (X : ActionVal T) : ActionVal T :=
   mkActionVal (fun st st' => X (state_set x (e st) st) st').
 Arguments Subst_ActionVal _ _ [_] _. (* The [T] argument in [Subst] is implicit. *)
@@ -429,11 +455,34 @@ Proof. reflexivity. Qed.
 
 Lemma Subst_assign :
   forall (x y : var) (e1 e2 : StateVal R),
-    (x ::= e1)[y <-- e2] = (x ::= (e1[y <- e2])).
+    x <> y ->
+    (x ::= e1)[y <-- e2] -|-
+    (Exists v : R, (get x [=] pure v)).
+    (x ::= (e1[y <- e2]);; y ::= e2).
 Proof.
   destruct e1 as [e1]. destruct e2 as [e2].
-  unfold Subst, Subst_ActionVal, assign.
-  simpl. f_equal. apply functional_extensionality.
+  unfold Subst, Subst_ActionVal, assign, test, seq.
+  split; simpl; intros.
+
+  unfold Subst, Subst_ActionVal, assign, test, seq, state_set.
+  simpl. intros. split; simpl. intros.
+  { eexists. split.
+    { reflexivity. }
+    { subst. apply functional_extensionality. intros.
+      destruct (string_dec x0 x); try reflexivity.
+      destruct (string_dec x0 y); try reflexivity.
+      congruence.
+      destruct (string_dec x0 y); try reflexivity.
+      f_equal. apply functional_extensionality. intro.
+      destruct (string_dec x1 x); try reflexivity. subst.
+        { 
+  { exists t0. split.
+    { subst. apply functional_extensionality. intros.
+      destruct (string_dec x0 x); try reflexivity.
+      destruct (string_dec x0 y); try reflexivity. subst.
+    split. 
+
+f_equal. apply functional_extensionality.
   intro. apply functional_extensionality. intro.
   unfold state_set. f_equal. apply functional_extensionality.
   intro. destruct (string_dec x2 x).
@@ -441,7 +490,7 @@ Proof.
   { destruct (string_dec x2 y).
     {  subst
   
-
+*)
 
 (** Here's a *very* simple example of using dL
  **)
@@ -459,7 +508,22 @@ Section Simple.
     "t" ::= pure 0.
 
   Definition plant : ActionProp :=
-    d["v"] [=] #[get "a"] //\\ d["t"] [=] pure 1 & get "t" [<=] pure d.
+    d["v"] [=] #[get "a"] //\\
+    d["a"] [=] pure 0 //\\
+    d["t"] [=] pure 1 & get "t" [<=] pure d.
+
+Require Import Coq.Classes.Morphisms.
+Instance Proper_box_lequiv :
+  Proper (lequiv ==> lequiv ==> lequiv) box.
+Proof.
+  red. red. red. red. unfold lequiv. simpl. firstorder.
+Qed.
+Instance Proper_box_lentails :
+  Proper (lentails --> lentails ==> lentails) box.
+Proof.
+  red. red. red. red. red. red. red. red. red. red. red. red.
+  red. simpl. intros. apply H0. firstorder.
+Qed.
 
   Theorem example :
     |-- safe -->> [[(ctrl;; plant)^*]]safe.
@@ -467,12 +531,24 @@ Section Simple.
     intros. charge_intros. rewrite <- star_I.
     charge_split.
     { charge_clear. apply G_rule. charge_intro.
-      unfold ctrl. repeat rewrite seq_rule.
-      rewrite nondet_assign_rule. charge_intro.
-Check seq_rule.
-      rewrite seq_rule.
-      { admit. }
-      { 
-        { reflexivity. }
+      unfold ctrl. repeat rewrite seq_rule. unfold plant.
+      rewrite <- differential_cut
+      with (C:=get "v" [+] get "a"[*](pure d [-] get "t")
+               [<=] pure V).
+      repeat rewrite box_land. charge_split.
+      { rewrite <- differential_induction_leq.
+        { rewrite assign_rule. rewrite test_rule.
+          rewrite nondet_assign_rule. charge_intros.
+          cbv beta iota delta - [Rle]. intros.
+          psatzl R. }
+        { prove_derive. }
+        { prove_derive. }
+        { cbv beta iota delta - [Rle]. intros. psatz R. } }
+      { charge_clear. apply G_rule. apply G_rule. apply G_rule.
+        erewrite <- box_monotone.
+        { apply differential_weakening. }
+        { cbv beta iota delta - [Rle]. intros. 
+    { reflexivity. }
+  Qed.
 
 End Simple.
