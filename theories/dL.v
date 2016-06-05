@@ -144,9 +144,12 @@ Qed.
  ** allows us to avoid defining our own substitution and free-variable
  ** relations, and it allows us to re-use a substantial bit of Coq's theory.
  **)
-Definition Subst (x : var) (e : StateVal R) T (X : StateVal T) : StateVal T :=
+(*Definition Subst (x : var) (e : StateVal R) T (X : StateVal T) : StateVal T :=
   mkStateVal (fun st => X (state_set x (e st) st)).
-Arguments Subst _ _ [_] _. (* The [T] argument in [Subst] is implicit. *)
+Arguments Subst _ _ [_] _. (* The [T] argument in [Subst] is implicit. *)*)
+Definition Subst T (x : var) (e : StateVal R) (X : StateVal T) : StateVal T :=
+  mkStateVal (fun st => X (state_set x (e st) st)).
+Arguments Subst [_] _ _ _. (* The [T] argument in [Subst] is implicit. *)
 Notation "p [ x <- e ]" := (Subst x e p) (at level 30).
 
 (** Discrete proof rules *)
@@ -195,7 +198,7 @@ Theorem seq_rule :
     [[a ;; b]]p -|- [[a]][[b]]p.
 Proof. compute; firstorder. Qed.
 
-Theorem star_K :
+Theorem star_1 :
   forall (a : ActionProp) (p : StateProp),
     [[a^*]]p -|- p //\\ [[a]][[a^*]]p.
 Proof.
@@ -207,6 +210,11 @@ Proof.
     { subst; tauto. }
     { subst st'. destruct H. eapply H3; eauto. } }
 Qed.
+
+Theorem K_rule :
+  forall (a : ActionProp) (p q : StateProp),
+    [[a]](p -->> q) |-- [[a]]p -->> [[a]]q.
+Proof. compute; firstorder. Qed.
 
 Theorem star_I :
   forall (a : ActionProp) (p : StateProp),
@@ -248,6 +256,16 @@ Proof.
   destruct H0 as [Hr [HF0 [HFr HFt] ] ].
   specialize (HFt r). assert (0 <= r <= r) by psatzl R.
   intuition congruence.
+Qed.
+
+Theorem differential_weakening' :
+  forall (dF : FlowProp) (P Q : StateProp),
+     [[dF & Q]](Q -->> P) -|- [[dF & Q]]P.
+Proof.
+  split.
+  { rewrite K_rule. pose proof (differential_weakening dF Q).
+    charge_tauto. }
+  { charge_revert. rewrite <- K_rule. apply G_rule. charge_tauto. }
 Qed.
 
 Theorem differential_cut :
@@ -363,7 +381,16 @@ Proof.
   apply derive_pt_mult with (f1:=fun t => e1 (f t)) (f2:=fun t => e2 (f t)).
 Qed.
 
-(** Using Ltac (Coq's tactic language) we can build automation to
+(** Some automation using Ltac (Coq's tactic language). *)
+
+(* This tactic breaks the logic abstractions. This should be used
+   when the goal has been reduced to a first-order formula over
+   real arithmetic. After applying this tactic, the goal should
+   be ready for arithmetic solvers. *)
+Ltac breakAbstraction :=
+  cbv beta iota delta - [Rle Rge].
+
+(** Using Ltac we can build automation to
  ** automatically construct derivatives using these rules.
  **)
 Ltac prove_derive :=
@@ -374,8 +401,18 @@ Ltac prove_derive :=
                | simple eapply D_state_val_pure
                ].
 
-Ltac differential_induction :=
-  etransitivity; [ | eapply differential_induction_leq; [ try prove_derive | try prove_derive | ] ].
+(* This tactic performs differential induction.
+   Currently, we only have a lemma for <=, but it will
+   be easy to add others.
+
+   All arithmetic goals are passed to a simple foundational
+   linear arithmetic solver. In the future, we will link
+   in more powerful arithmetic decision procedures. *)
+Ltac diff_ind :=
+  rewrite <- differential_induction_leq;
+  [ try solve [breakAbstraction; intros; psatzl R]
+  | try prove_derive | try prove_derive
+  | try solve [breakAbstraction; intros; psatzl R] ].
 
 (** Substitution rules *)
 
@@ -411,107 +448,44 @@ Proof.
   destruct (string_dec x y); congruence.
 Qed.
 
-(*
-Definition Subst_ActionVal (x : var) (e : StateVal R) T (X : ActionVal T) : ActionVal T :=
-  mkActionVal (fun st st' => X (state_set x (e st) st) st').
-Arguments Subst_ActionVal _ _ [_] _. (* The [T] argument in [Subst] is implicit. *)
-Notation "p [ x <-- e ]" := (Subst_ActionVal x e p) (at level 30).
-
-(*
-Lemma Subst_box :
-  forall (a : ActionProp) (P G : StateProp) (x : var) (e : StateVal R),
-    G |-- get x [=] e -->> [[a]] P ->
-    G[x <- e] |-- ([[a]]P)[x <- e].
+Lemma Subst_limpl :
+  forall (x : var) (e : StateVal R) (p q : StateProp),
+    (p -->> q)[x <- e] -|- p[x <- e] -->> q[x <- e].
 Proof.
-  destruct a as [a]. destruct P as [P]. destruct e as [e].
-  destruct G as [G].
-  unfold box, Subst. simpl; intros. eapply H in H0; eauto.
-  unfold state_set. dest
-  { admit. }
-  { 
+  unfold Subst, state_set. split; simpl; intros; auto.
+Qed.
 
-
-Lemma Subst_box :
-  forall (a : ActionProp) (P : StateProp) (x : var) (e : StateVal R),
-    ([[a]]P)[x <- e] -|- [[?(get x) [=] e;; a]] P.
+Lemma Subst_land :
+  forall (x : var) (e : StateVal R) (p q : StateProp),
+    (p //\\ q)[x <- e] -|- p[x <- e] //\\ q[x <- e].
 Proof.
-  destruct a as [a]. destruct P as [P]. destruct e as [e].
-  unfold box, test, seq, Subst. split; simpl; intros.
-  { apply H. destruct H0. destruct H0. destruct H0. subst t.
-    assert (x0 = state_set x (e x0) x0).
-    { apply functional_extensionality; intro. unfold state_set.
-      destruct (string_dec x1 x).
-      { subst. assumption. }
-      { reflexivity. } }
-    rewrite <- H0. assumption. }
-  { apply H. exists ((state_set x (e t) t)).
+  unfold Subst, state_set. split; simpl; intros; auto.
+Qed.
 
-*)
-
-Lemma Subst_box :
-  forall (a : ActionProp) (P : StateProp) (x : var) (e : StateVal R),
-    ([[a]]P)[x <- e] = [[a[x <-- e] ]]P.
-Proof. reflexivity. Qed.
-
-Lemma Subst_assign :
-  forall (x y : var) (e1 e2 : StateVal R),
-    x <> y ->
-    (x ::= e1)[y <-- e2] -|-
-    (Exists v : R, (get x [=] pure v)).
-    (x ::= (e1[y <- e2]);; y ::= e2).
+Lemma Subst_ltrue :
+  forall (x : var) (e : StateVal R),
+    ltrue[x <- e] -|- ltrue.
 Proof.
-  destruct e1 as [e1]. destruct e2 as [e2].
-  unfold Subst, Subst_ActionVal, assign, test, seq.
-  split; simpl; intros.
+  unfold Subst, state_set. split; simpl; intros; auto.
+Qed.
 
-  unfold Subst, Subst_ActionVal, assign, test, seq, state_set.
-  simpl. intros. split; simpl. intros.
-  { eexists. split.
-    { reflexivity. }
-    { subst. apply functional_extensionality. intros.
-      destruct (string_dec x0 x); try reflexivity.
-      destruct (string_dec x0 y); try reflexivity.
-      congruence.
-      destruct (string_dec x0 y); try reflexivity.
-      f_equal. apply functional_extensionality. intro.
-      destruct (string_dec x1 x); try reflexivity. subst.
-        { 
-  { exists t0. split.
-    { subst. apply functional_extensionality. intros.
-      destruct (string_dec x0 x); try reflexivity.
-      destruct (string_dec x0 y); try reflexivity. subst.
-    split. 
+Lemma Subst_lfalse :
+  forall (x : var) (e : StateVal R),
+    lfalse[x <- e] -|- lfalse.
+Proof.
+  unfold Subst, state_set. split; simpl; intros; auto.
+Qed.
 
-f_equal. apply functional_extensionality.
-  intro. apply functional_extensionality. intro.
-  unfold state_set. f_equal. apply functional_extensionality.
-  intro. destruct (string_dec x2 x).
-  { reflexivity. }
-  { destruct (string_dec x2 y).
-    {  subst
-  
-*)
-
-(** Here's a *very* simple example of using dL
+(**
+ ** We use generalized rewriting to apply proof rules of the form
+ ** P |-- Q within formulas. For example, if you have a goal
+ ** |-- [[a]](Q //\\ R), you can rewrite the lemma P |-- Q to obtain
+ ** a new goal |-- [[a]](P //\\ R). This is closely related to the
+ ** contextual proof rules of dL.
+ **
+ ** The following instance declarations allow us to perform this
+ ** rewriting.
  **)
-Section Simple.
-
-  Variable V : R.
-  Variable d : R.
-
-  Definition safe : StateProp :=
-    get "v" [<=] pure V.
-
-  Definition ctrl : ActionProp :=
-    "a" ::= ***;;
-     ? get "v" [+] get "a"[*]pure d [<=] pure V;;
-    "t" ::= pure 0.
-
-  Definition plant : ActionProp :=
-    d["v"] [=] #[get "a"] //\\
-    d["a"] [=] pure 0 //\\
-    d["t"] [=] pure 1 & get "t" [<=] pure d.
-
 Require Import Coq.Classes.Morphisms.
 Instance Proper_box_lequiv :
   Proper (lequiv ==> lequiv ==> lequiv) box.
@@ -524,31 +498,90 @@ Proof.
   red. red. red. red. red. red. red. red. red. red. red. red.
   red. simpl. intros. apply H0. firstorder.
 Qed.
+Instance Proper_Subst_lequiv :
+  Proper (eq ==> eq ==> lequiv ==> lequiv) (Subst (T:=Prop)).
+Proof.
+  repeat red. simpl. intros.
+  split; intros; apply H1; intuition congruence.
+Qed.
+Instance Proper_Subst_lentails :
+  Proper (eq ==> eq ==> lentails ==> lentails) (Subst (T:=Prop)).
+Proof.
+  repeat red. simpl. intros.
+  apply H1; intuition congruence.
+Qed.
 
-  Theorem example :
+(**
+ ** Here's a simple example of using dL.
+ ** The following system enforces an upper bound
+ ** on velocity by controlling acceleration.
+ **)
+Section VelocityBound.
+
+  (* The upper bound on velocity. *)
+  Variable V : R.
+  (* Upper bound on the time between executions of
+     the discrete controller. *)
+  Variable d : R.
+
+  (* The safety property, i.e. the velocity is at most the
+     upper bound. *)
+  Definition safe : StateProp :=
+    get "v" [<=] pure V.
+
+  (* The discrete controller sets the acceleration to some
+     value that will be safe until the next execution. It
+     also sets the timer to zero. *)
+  Definition ctrl : ActionProp :=
+    "a" ::= ***;;
+     ? get "v" [+] get "a"[*]pure d [<=] pure V;;
+    "t" ::= pure 0.
+
+  (* The physical dynamics of the system. This formulation
+     differs slightly from dL in that we explicitly set
+     derivatives to zero. *)
+  Definition plant : ActionProp :=
+    d["v"] [=] #[get "a"] //\\
+    d["a"] [=] pure 0 //\\
+    d["t"] [=] pure 1 & get "t" [<=] pure d.
+
+  (* Theorem expressing that the system does enforce
+     the upper bound on velocity. *)
+  Theorem bound_correct :
     |-- safe -->> [[(ctrl;; plant)^*]]safe.
   Proof.
     intros. charge_intros. rewrite <- star_I.
     charge_split.
     { charge_clear. apply G_rule. charge_intro.
-      unfold ctrl. repeat rewrite seq_rule. unfold plant.
-      rewrite <- differential_cut
-      with (C:=get "v" [+] get "a"[*](pure d [-] get "t")
-               [<=] pure V).
-      repeat rewrite box_land. charge_split.
-      { rewrite <- differential_induction_leq.
-        { rewrite assign_rule. rewrite test_rule.
-          rewrite nondet_assign_rule. charge_intros.
-          cbv beta iota delta - [Rle]. intros.
-          psatzl R. }
-        { prove_derive. }
-        { prove_derive. }
-        { cbv beta iota delta - [Rle]. intros. psatz R. } }
-      { charge_clear. apply G_rule. apply G_rule. apply G_rule.
-        erewrite <- box_monotone.
-        { apply differential_weakening. }
-        { cbv beta iota delta - [Rle]. intros. 
+      unfold ctrl. repeat rewrite seq_rule.
+      rewrite nondet_assign_rule. charge_intros.
+      rewrite test_rule. rewrite assign_rule.
+      rewrite Subst_limpl. charge_intro.
+      assert (x <= 0 \/ 0 <= x) by psatzl R.
+      destruct H; unfold plant.
+      { rewrite <- differential_cut with (C:=get "a" [<=] pure 0).
+        repeat rewrite Subst_land. charge_split.
+        { diff_ind. }
+        { unfold safe. diff_ind. } }
+      { rewrite <- differential_cut with (C:=pure 0 [<=] get "a").
+        repeat rewrite box_land. repeat rewrite Subst_land. charge_split.
+        { diff_ind. }
+        { rewrite <- differential_cut
+          with (C:=get "v" [+] get "a"[*](pure d [-] get "t")
+                       [<=] pure V).
+          repeat rewrite Subst_land. charge_split.
+          { diff_ind.
+            (* This goal requires non-linear arithmetic,
+               so we use a foundational non-linear decision
+               procedure. In the future, we will call better
+               decision procedures such as Z3. *)
+            breakAbstraction. intros. psatz R. }
+          { rewrite <- differential_weakening'. charge_clear.
+            do 2 rewrite <- Subst_ltrue.
+            apply Proper_Subst_lentails; [ reflexivity | reflexivity | ].
+            apply Proper_Subst_lentails; [ reflexivity | reflexivity | ].
+            apply G_rule. breakAbstraction. intros. psatz R. } } } }
     { reflexivity. }
   Qed.
 
-End Simple.
+End VelocityBound.
