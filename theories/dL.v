@@ -29,11 +29,15 @@ Notation "a [>=] b" := (pure Rge <$> a <$> b) (at level 70, right associativity)
 Notation "a [<=] b" := (pure Rle <$> a <$> b) (at level 70, right associativity).
 Notation "a [=] b" := (pure (@eq R) <$> a <$> b) (at level 70, right associativity).
 
-(** We can also extract values from the state.
+(** We use the following to lift variables into
+ ** [StateVal]s, which allows us to extract values
+ ** from the state.
+ **
+ ** Writing [get "x"] is the equivalent of writing
+ ** x in dL. A proper interface should hide this.
  **)
 Definition get (x : var) : StateVal R :=
   mkStateVal (fun st => st x).
-
 
 (** This begins the core definitions for the dL language.
  **)
@@ -292,7 +296,7 @@ Definition D_state_val (e : StateVal R) (e' : FlowVal R) : Prop :=
         derive_pt (fun t => e (f t)) t (derivable_e t) =
         e' (f t) (fun x => derive_pt (fun t => f t x) t (derivable_f x t)).
 
-(** Differential induction. *)
+(** Differential induction. We just prove one case for now. *)
 Theorem differential_induction_leq :
   forall (dF : FlowProp) (I : StateProp)
          (e1 e2 : StateVal R) (e1' e2' : FlowVal R),
@@ -319,7 +323,10 @@ Proof.
       rewrite derive_pt_minus
       with (f1:=fun t => e2 (f t)) (f2:=fun t => e1 (f t)).
       rewrite H. rewrite H0.
-      assert (dF (f t0) (fun x1 : var => derive_pt (fun t1 : R => f t1 x1) t0 (pf x1 t0)) /\ I (f t0)).
+      assert (dF (f t0)
+                 (fun x1 : var => derive_pt
+                                    (fun t1 : R => f t1 x1) t0
+                                    (pf x1 t0)) /\ I (f t0)).
       { apply HdF; psatzl R. }
       apply H1 in H6. psatzl R. }
     { subst. psatzl R. } }
