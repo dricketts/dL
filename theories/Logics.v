@@ -113,7 +113,6 @@ Require Import ExtLib.Structures.Applicative.
 Require Import ChargeCore.Logics.ILogic.
 Require Import ChargeCore.Logics.ILogicIso.
 Require ChargeCore.Logics.ILInsts.
-Transparent ILInsts.ILFun_Ops.
 
 (** Notation for applicative functors *)
 Notation "x <$> y" := (ap x y) (at level 30).
@@ -158,3 +157,6 @@ Instance ILogic_FlowProp : ILogic FlowProp := _.
 Instance Applicative_FlowVal : Applicative FlowVal :=
 { pure := fun _ x => mkFlowVal (fun _ _ => x)
 ; ap   := fun _ _ f x => mkFlowVal (fun st st' => f st st' (x st st')) }.
+
+Export ChargeCore.Logics.ILogic.
+Export ExtLib.Structures.Applicative.

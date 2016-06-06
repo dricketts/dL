@@ -8,13 +8,11 @@ Require Import Coq.Logic.FunctionalExtensionality.
  ** dependence on Coq's real analysis library.
  **)
 Require Import Coq.Logic.ClassicalFacts.
-Require Import ExtLib.Structures.Applicative.
+Require Import Coq.Classes.Morphisms.
 Require Import ChargeCore.Logics.ILogic.
-Require Import ChargeCore.Logics.ILogicIso.
 Require Import ChargeCore.Tactics.Tactics.
-Require ChargeCore.Logics.ILInsts.
 Require Import dL.Logics.
-Transparent ILInsts.ILFun_Ops.
+Local Transparent ILInsts.ILFun_Ops.
 
 Local Open Scope R.
 Local Open Scope string_scope.
@@ -490,27 +488,28 @@ Qed.
  ** contextual proof rules of dL.
  **
  ** The following instance declarations allow us to perform this
- ** rewriting.
+ ** rewriting in particular contexts. Many more are possible, but
+ ** this collection of definitions are the only ones necessary to
+ ** the example below.
  **)
-Require Import Coq.Classes.Morphisms.
-Instance Proper_box_lequiv :
+Global Instance Proper_box_lequiv :
   Proper (lequiv ==> lequiv ==> lequiv) box.
 Proof.
   red. red. red. red. unfold lequiv. simpl. firstorder.
 Qed.
-Instance Proper_box_lentails :
+Global Instance Proper_box_lentails :
   Proper (lentails --> lentails ==> lentails) box.
 Proof.
   red. red. red. red. red. red. red. red. red. red. red. red.
   red. simpl. intros. apply H0. firstorder.
 Qed.
-Instance Proper_Subst_lequiv :
+Global Instance Proper_Subst_lequiv :
   Proper (eq ==> eq ==> lequiv ==> lequiv) (Subst (T:=Prop)).
 Proof.
   repeat red. simpl. intros.
   split; intros; apply H1; intuition congruence.
 Qed.
-Instance Proper_Subst_lentails :
+Global Instance Proper_Subst_lentails :
   Proper (eq ==> eq ==> lentails ==> lentails) (Subst (T:=Prop)).
 Proof.
   repeat red. simpl. intros.
