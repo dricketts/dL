@@ -78,7 +78,6 @@ Definition evolve (dF : FlowProp) (I : StateProp) : ActionProp :=
                    I (F t)).
 
 Notation "d & I" := (evolve d I) (at level 80, I at level 79).
-Print Grammar constr.
 Notation "'d[' x ']'" := (mkFlowVal (fun _ st' => st' x)) (at level 30).
 Notation "'#[' e ']'" := (mkFlowVal (fun st _ => e st)) (at level 30).
 
