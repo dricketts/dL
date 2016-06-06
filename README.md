@@ -1,9 +1,10 @@
 # dL
 
-This repository contains an implemention of differential dynamic logic (http://symbolaris.com/logic/dL.html) in Coq. There are currently two files:
+This repository contains an implemention of differential dynamic logic (http://symbolaris.com/logic/dL.html) in Coq. There are currently three files:
 
 - theories/Logics.v : This formalizes the logics found in dL, in particular predicates over states (dL formulas), state relations (hybrid programs), and flow predicates (differential in-equations describing physical evolutions).
-- theories/dL.v : This formalizes the operators of dL (e.g. assignment) in terms of the logics in Logics.v. This file also states and proves the proof rules of dL as Coq theorems. Finally, there is a small example at the end of the file to illustrate how verification works in this framework.
+- theories/dL.v : This formalizes the operators of dL (e.g. assignment) in terms of the logics in Logics.v. This file also states and proves the proof rules of dL as Coq theorems.
+- examples/Velocity.v : This contains a small example to illustrate how verification works in this framework.
 
 ## Building the code
 
@@ -16,7 +17,7 @@ This will be sufficient to build most of the code. In order to complete the enti
 
     apt-get install coinor-csdp
 
-Once you've installed these dependencies, running ```make``` in the root directory should build both files.
+Once you've installed these dependencies, running ```make``` in the root directory should build all files.
 
 ## Working with the code
 
