@@ -1,4 +1,7 @@
 -Q theories dL
+-Q examples Examples
 
 ./theories/Logics.v
 ./theories/dL.v
+
+./examples/Velocity.v

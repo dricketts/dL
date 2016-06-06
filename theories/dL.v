@@ -17,8 +17,12 @@ Local Transparent ILInsts.ILFun_Ops.
 Local Open Scope R.
 Local Open Scope string_scope.
 
+(** This file formalizes dL using the logics defined in Logics.v *)
+
 (** First, we define some notation to lift standard operators into
- ** the various logics.
+ ** the various logics. These define some operators for building
+ ** terms in dL, but anything of type [StateVal T] is a term of
+ ** type T.
  **)
 Notation "a [+] b" := (pure Rplus <$> a <$> b) (at level 50, left associativity).
 Notation "a [-] b" := (pure Rminus <$> a <$> b) (at level 50, left associativity).
@@ -37,7 +41,7 @@ Notation "a [=] b" := (pure (@eq R) <$> a <$> b) (at level 70, right associativi
 Definition get (x : var) : StateVal R :=
   mkStateVal (fun st => st x).
 
-(** This begins the core definitions for the dL language.
+(** This begins the core definitions for hybrid programs.
  **)
 Definition state_set (x : var) (e : R) (st : state) : state :=
   fun y => if string_dec y x then e else st y.
@@ -100,6 +104,12 @@ Definition star : ActionProp -> ActionProp :=
 
 Notation "a ^*" := (star a) (at level 80).
 
+(** This begins the core definitions for dL. Note that logical
+ ** connectives such as conjunction are not defined here
+ ** because we get them for free from the definitions in
+ ** Logics.v
+ **)
+
 (** Box *)
 Definition box (a : ActionProp) (s : StateProp) : StateProp :=
   mkStateVal (fun st => forall st', a st st' -> s st').
@@ -118,7 +128,7 @@ Notation "! p" := (p -->> lfalse) (at level 30, p at level 30).
  ** "implies false".
  **)
 
-(** This ends the core definitions in the logic.
+(** This ends the core definitions of dL.
  ** Now we state and prove a range of proof rules.
  ** - The theorems roughly follow the presentation from the
  **   uniform substitution paper; however, they are reusing
@@ -515,78 +525,3 @@ Proof.
   repeat red. simpl. intros.
   apply H1; intuition congruence.
 Qed.
-
-(**
- ** Here's a simple example of using dL.
- ** The following system enforces an upper bound
- ** on velocity by controlling acceleration.
- **)
-Section VelocityBound.
-
-  (* The upper bound on velocity. *)
-  Variable V : R.
-  (* Upper bound on the time between executions of
-     the discrete controller. *)
-  Variable d : R.
-
-  (* The safety property, i.e. the velocity is at most the
-     upper bound. *)
-  Definition safe : StateProp :=
-    get "v" [<=] pure V.
-
-  (* The discrete controller sets the acceleration to some
-     value that will be safe until the next execution. It
-     also sets the timer to zero. *)
-  Definition ctrl : ActionProp :=
-    "a" ::= ***;;
-     ? get "v" [+] get "a"[*]pure d [<=] pure V;;
-    "t" ::= pure 0.
-
-  (* The physical dynamics of the system. This formulation
-     differs slightly from dL in that we explicitly set
-     derivatives to zero. *)
-  Definition plant : ActionProp :=
-    d["v"] [=] #[get "a"] //\\
-    d["a"] [=] pure 0 //\\
-    d["t"] [=] pure 1 & get "t" [<=] pure d.
-
-  (* Theorem expressing that the system does enforce
-     the upper bound on velocity. *)
-  Theorem bound_correct :
-    |-- safe -->> [[(ctrl;; plant)^*]]safe.
-  Proof.
-    intros. charge_intros. rewrite <- star_I.
-    charge_split.
-    { charge_clear. apply G_rule. charge_intro.
-      unfold ctrl. repeat rewrite seq_rule.
-      rewrite nondet_assign_rule. charge_intros.
-      rewrite test_rule. rewrite assign_rule.
-      rewrite Subst_limpl. charge_intro.
-      assert (x <= 0 \/ 0 <= x) by psatzl R.
-      destruct H; unfold plant.
-      { rewrite <- differential_cut with (C:=get "a" [<=] pure 0).
-        repeat rewrite Subst_land. charge_split.
-        { diff_ind. }
-        { unfold safe. diff_ind. } }
-      { rewrite <- differential_cut with (C:=pure 0 [<=] get "a").
-        repeat rewrite box_land. repeat rewrite Subst_land. charge_split.
-        { diff_ind. }
-        { rewrite <- differential_cut
-          with (C:=get "v" [+] get "a"[*](pure d [-] get "t")
-                       [<=] pure V).
-          repeat rewrite Subst_land. charge_split.
-          { diff_ind.
-            (* This goal requires non-linear arithmetic,
-               so we use a foundational non-linear decision
-               procedure. In the future, we will call better
-               decision procedures such as Z3. *)
-            breakAbstraction. intros. psatz R. }
-          { rewrite <- differential_weakening'. charge_clear.
-            do 2 rewrite <- Subst_ltrue.
-            apply Proper_Subst_lentails; [ reflexivity | reflexivity | ].
-            apply Proper_Subst_lentails; [ reflexivity | reflexivity | ].
-            apply G_rule. breakAbstraction. intros. psatz R. } } } }
-    { reflexivity. }
-  Qed.
-
-End VelocityBound.
