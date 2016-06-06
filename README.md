@@ -1,13 +1,13 @@
 # dL
 
-This repository contains an implemention of differential dynamic logic ([[http://symbolaris.com/logic/dL.html]]) in Coq. There are currently two files:
+This repository contains an implemention of differential dynamic logic (http://symbolaris.com/logic/dL.html) in Coq. There are currently two files:
 
 - theories/Logics.v : This formalizes the logics found in dL, in particular predicates over states (dL formulas), state relations (hybrid programs), and flow predicates (differential in-equations describing physical evolutions).
 - theories/dL.v : This formalizes the operators of dL (e.g. assignment) in terms of the logics in Logics.v. This file also states and proves the proof rules of dL as Coq theorems. Finally, there is a small example at the end of the file to illustrate how verification works in this framework.
 
 ## Building the code
 
-This project has several dependencies, and the best way to install both Coq and these dependencies is via opam. Instructions for getting started with opam reside here: [[http://coq.io/opam/get_started.html]]. Once you've installed the latest version of Coq (via opam), you'll need to install the following Coq packages:
+This project has several dependencies, and the best way to install both Coq and these dependencies is via opam. Instructions for getting started with opam reside here: http://coq.io/opam/get_started.html. Once you've installed the latest version of Coq (via opam), you'll need to install the following Coq packages:
 
 - coq-charge-core
 - coq-ext-lib
