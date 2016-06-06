@@ -15,14 +15,19 @@ Local Open Scope string_scope.
  **)
 Section VelocityBound.
 
-  (* The upper bound on velocity. *)
+  (* The upper bound on velocity. This is a symbolic constant. *)
   Variable V : R.
   (* Upper bound on the time between executions of
-     the discrete controller. *)
+     the discrete controller. This is also a symbolic constant. *)
   Variable d : R.
 
   (* The safety property, i.e. the velocity is at most the
-     upper bound. *)
+     upper bound. You have to write [get "v"] to access
+     the current value of the velocity variable v. You also
+     have to write [pure V] to express a constant. These are
+     some of the many examples of how the syntax is very
+     verbose in our embedding, but we hope to improve this
+     in the future. *)
   Definition safe : StateProp :=
     get "v" [<=] pure V.
 
@@ -36,14 +41,22 @@ Section VelocityBound.
 
   (* The physical dynamics of the system. This formulation
      differs slightly from dL in that we explicitly set
-     derivatives to zero. *)
+     derivatives to zero. You write d["v"] [=] #[get "a"]
+     to write that the derivative of the variable v is
+     equal to the variable a. This syntax is pretty brutal
+     and we would definitely like to improve it. The evolution
+     invariant follows the [&] symbol. *)
   Definition plant : ActionProp :=
     d["v"] [=] #[get "a"] //\\
     d["a"] [=] pure 0 //\\
     d["t"] [=] pure 1 & get "t" [<=] pure d.
 
   (* Theorem expressing that the system does enforce
-     the upper bound on velocity. *)
+     the upper bound on velocity. The proof is fairly simple
+     and can probably be mostly or completely automated, but
+     for the moment, we manually apply proof rules. Proof
+     rules are applied contextually by [rewrite] or directly
+     by [apply]. *)
   Theorem bound_correct :
     |-- safe -->> [[(ctrl;; plant)^*]]safe.
   Proof.
