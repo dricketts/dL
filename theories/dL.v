@@ -11,6 +11,7 @@ Require Import Coq.Logic.ClassicalFacts.
 Require Import Coq.Classes.Morphisms.
 Require Import ChargeCore.Logics.ILogic.
 Require Import ChargeCore.Tactics.Tactics.
+Require Import Records.Records.
 Require Import dL.Logics.
 Local Transparent ILInsts.ILFun_Ops.
 
@@ -31,53 +32,66 @@ Notation "a [>=] b" := (pure Rge <$> a <$> b) (at level 70, right associativity)
 Notation "a [<=] b" := (pure Rle <$> a <$> b) (at level 70, right associativity).
 Notation "a [=] b" := (pure (@eq R) <$> a <$> b) (at level 70, right associativity).
 
-(** We use the following to lift variables into
- ** [StateVal]s, which allows us to extract values
- ** from the state.
- **
- ** Writing [get "x"] is the equivalent of writing
- ** x in dL. A proper interface should hide this.
- **)
-Definition get (x : var) : StateVal R :=
-  mkStateVal (fun st => st x).
+Section dL.
 
-(** This begins the core definitions for hybrid programs.
- **)
-Definition state_set (x : var) (e : R) (st : state) : state :=
-  fun y => if string_dec y x then e else st y.
+  Definition var : Type := string.
+  Variable Cvars : fields.
+  Definition Cstate : Type := record Cvars.
+  Variable Dvars : fields.
+  Definition Dstate : Type := record Dvars.
+  Definition vars : fields := fields_join Cvars Dvars.
+  Definition state : Type := record vars.
 
-(** Assignment *)
-Definition assign (x : var) (e : StateVal R) : ActionProp :=
-  mkActionVal (fun st st' => st' = state_set x (e st) st).
+  (** We use the following to lift variables into
+   ** [StateVal]s, which allows us to extract values
+   ** from the state.
+   **
+   ** Writing [get "x"] is the equivalent of writing
+   ** x in dL. A proper interface should hide this.
+   **)
+  Definition get (x : var) {T : Type} {pf : fields_get x vars = Some T} : StateVal state T :=
+    mkStateVal (fun st => Rget st x pf).
 
-Notation "x ::= e" := (assign x e) (at level 80, e at level 70).
+  (** This begins the core definitions for hybrid programs.
+   **)
+  Definition state_set (x : var) {T : Type} (e : T) (st : state)
+             {pf : fields_get x vars = Some T} : state :=
+    record_set (get_member _ _ pf) e st.
 
-(** Non-deterministic assignment *)
-Definition nondet_assign (x : var) : ActionProp :=
-  mkActionVal (fun st st' => exists (v : R), st' = state_set x v st).
+  (** Assignment *)
+  Definition assign (x : var) {T : Type} (e : StateVal state T)
+             {pf : fields_get x vars = Some T} : ActionProp state :=
+    mkActionVal (fun st st' => st' = state_set (pf:=pf) x (e st) st).
 
-Notation "x ::= ***" := (nondet_assign x) (at level 80).
+  Notation "x ::= e" := (@assign x _ e eq_refl) (at level 80, e at level 70).
 
-(** Test *)
-Definition test (t : StateProp) : ActionProp :=
-  mkActionVal (fun st st' => st = st' /\ t st').
+  (** Non-deterministic assignment *)
+  Definition nondet_assign (x : var) {T : Type}
+             {pf : fields_get x vars = Some T} : ActionProp state :=
+    mkActionVal (fun st st' => exists (v : T), st' = state_set (pf:=pf) x v st).
 
-Notation "? e" := (test e) (at level 80, e at level 70).
+  Notation "x ::= ***" := (@nondet_assign x _ eq_refl) (at level 80).
 
-(** Continuous transitions. *)
-(** This gives the semantic definition of a continuous evolution
-    subject to a flow [dF] and an evolution constraint [I]. *)
-Definition evolve (dF : FlowProp) (I : StateProp) : ActionProp :=
-  mkActionVal
-    (fun st st' =>
-       exists (r : R) (F : R -> state)
-              (* derivable states that derivatives exists for all variables
+  (** Test *)
+  Definition test (t : StateProp state) : ActionProp state :=
+    mkActionVal (fun st st' => st = st' /\ t st').
+
+  Notation "? e" := (test e) (at level 80, e at level 70).
+
+  (** Continuous transitions. *)
+  (** This gives the semantic definition of a continuous evolution
+   ** subject to a flow [dF] and an evolution constraint [I]. *)
+  Definition evolve (dF : FlowProp state) (I : StateProp state) : ActionProp state :=
+    mkActionVal
+      (fun st st' =>
+         exists (r : R) (F : R -> state)
+                (* derivable states that derivatives exists for all variables
                  at all times from 0 to r. *)
-              (derivable : forall (x : var) (t : R), derivable_pt (fun t => F t x) t),
-         0 <= r /\ F 0 = st /\ F r = st' /\
-         forall t, 0 <= t <= r ->
-                   dF (F t) (fun x => derive_pt (fun t => F t x) t (derivable x t)) /\
-                   I (F t)).
+                (derivable : forall (x : var) (t : R), derivable_pt (fun t => F t x) t),
+           0 <= r /\ F 0 = st /\ F r = st' /\
+           forall t, 0 <= t <= r ->
+                     dF (F t) (fun x => derive_pt (fun t => F t x) t (derivable x t)) /\
+                     I (F t)).
 
 Notation "d & I" := (evolve d I) (at level 80, I at level 79).
 Notation "'d[' x ']'" := (mkFlowVal (fun _ st' => st' x)) (at level 30).
