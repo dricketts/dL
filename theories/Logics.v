@@ -57,7 +57,8 @@ Section Logics.
     and their derivatives. *)
   Record FlowVal (T : Type) : Type := mkFlowVal
     { unFlowVal : state -> state -> T }.
-  Definition FlowProp : Type := FlowVal Prop.
+  Definition FlowProp : Type :=
+    FlowVal Prop.
 
   (** The rest of the file defines "natural" structures that these types have.
    ** 

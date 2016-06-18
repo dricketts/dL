@@ -35,11 +35,7 @@ Notation "a [=] b" := (pure (@eq R) <$> a <$> b) (at level 70, right associativi
 Section dL.
 
   Definition var : Type := string.
-  Variable Cvars : fields.
-  Definition Cstate : Type := record Cvars.
-  Variable Dvars : fields.
-  Definition Dstate : Type := record Dvars.
-  Definition vars : fields := fields_join Cvars Dvars.
+  Variable vars : fields.
   Definition state : Type := record vars.
 
   (** We use the following to lift variables into
@@ -78,90 +74,106 @@ Section dL.
 
   Notation "? e" := (test e) (at level 80, e at level 70).
 
-  (** Continuous transitions. *)
-  (** This gives the semantic definition of a continuous evolution
-   ** subject to a flow [dF] and an evolution constraint [I]. *)
-  Definition evolve (dF : FlowProp state) (I : StateProp state) : ActionProp state :=
-    mkActionVal
-      (fun st st' =>
-         exists (r : R) (F : R -> state)
-                (* derivable states that derivatives exists for all variables
-                 at all times from 0 to r. *)
-                (derivable : forall (x : var) (t : R), derivable_pt (fun t => F t x) t),
-           0 <= r /\ F 0 = st /\ F r = st' /\
-           forall t, 0 <= t <= r ->
-                     dF (F t) (fun x => derive_pt (fun t => F t x) t (derivable x t)) /\
-                     I (F t)).
+  Require Import Coquelicot.Coquelicot.
+  Section Continuous.
 
-Notation "d & I" := (evolve d I) (at level 80, I at level 79).
-Notation "'d[' x ']'" := (mkFlowVal (fun _ st' => st' x)) (at level 30).
-Notation "'#[' e ']'" := (mkFlowVal (fun st _ => e st)) (at level 30).
+    Variable cstate : NormedModule R_AbsRing.
 
-(** Choice *)
-Definition choice (a b : ActionProp) : ActionProp :=
-  mkActionVal (fun st st' => a st st' \/ b st st').
+    (** Continuous transitions. *)
+    (** This gives the semantic definition of a continuous evolution
+     ** subject to a flow [dF] and an evolution constraint [I]. *)
+    Definition evolve' (dF : FlowProp cstate) (I : StateProp cstate)
+      : ActionProp cstate :=
+      mkActionVal
+        (fun st st' =>
+           exists (r : R) (F : R -> cstate),
+             0 <= r /\ F 0 = st /\ F r = st' /\
+             forall t, 0 <= t <= r ->
+                       exists (D : cstate),
+                         is_derive F t D /\
+                         dF (F t) D /\ I (F t)).
 
-Notation "a '+++' b" := (choice a b) (at level 80).
+    Variable to_cstate : state -> cstate.
+    Variable from_cstate : state -> cstate -> state.
 
-(** Sequencing *)
-Definition seq (a b : ActionProp) : ActionProp :=
-  mkActionVal (fun st st' => exists st'', a st st'' /\ b st'' st').
+    Definition evolve (dF : FlowProp cstate) (I : StateProp cstate)
+      : ActionProp state :=
+      mkActionVal
+        (fun st st' =>
+           evolve' dF I (to_cstate st) (to_cstate st') /\
+           st' = from_cstate st (to_cstate st')).
 
-Notation "a ;; b" := (seq a b) (at level 90, right associativity).
+    Notation "d & I" := (evolve d I) (at level 80, I at level 79).
+    Notation "'d[' x ']'" := (mkFlowVal (fun _ st' => st' x)) (at level 30).
+    Notation "'#[' e ']'" := (mkFlowVal (fun st _ => e st)) (at level 30).
 
-(** Star *)
-Inductive star' (a : ActionProp) (st : state) : state -> Prop :=
-| Done : star' a st st
-| Continue : forall st' st'', a st st' -> star' a st' st'' -> star' a st st''.
-Definition star : ActionProp -> ActionProp :=
-  fun a => mkActionVal (star' a).
+  End Continuous.
 
-Notation "a ^*" := (star a) (at level 80).
+  (** Choice *)
+  Definition choice (a b : ActionProp state) : ActionProp state :=
+    mkActionVal (fun st st' => a st st' \/ b st st').
 
-(** This begins the core definitions for dL. Note that logical
- ** connectives such as conjunction are not defined here
- ** because we get them for free from the definitions in
- ** Logics.v
- **)
+  Notation "a '+++' b" := (choice a b) (at level 80).
 
-(** Box *)
-Definition box (a : ActionProp) (s : StateProp) : StateProp :=
-  mkStateVal (fun st => forall st', a st st' -> s st').
+  (** Sequencing *)
+  Definition seq (a b : ActionProp state) : ActionProp state :=
+    mkActionVal (fun st st' => exists st'', a st st'' /\ b st'' st').
 
-Notation "'[['  a ']]' p" := (box a p) (at level 70, p at next level, a at level 0).
+  Notation "a ;; b" := (seq a b) (at level 90, right associativity).
 
-(** Diamond *)
-Definition diamond (a : ActionProp) (s : StateProp) : StateProp :=
-  mkStateVal (fun st => exists st', a st st' /\ s st').
+  (** Star *)
+  Inductive star' (a : ActionProp state) (st : state) : state -> Prop :=
+  | Done : star' a st st
+  | Continue : forall st' st'', a st st' -> star' a st' st'' -> star' a st st''.
+  Definition star : ActionProp state -> ActionProp state :=
+    fun a => mkActionVal (star' a).
 
-Notation "'<<'  a '>>' p" := (diamond a p) (at level 70, p at next level, a at level 0).
+  Notation "a ^*" := (star a) (at level 80).
 
-(** Negation *)
-Notation "! p" := (p -->> lfalse) (at level 30, p at level 30).
-(** NOTE: In constructive logic (like Coq) negation is defined to be
- ** "implies false".
- **)
+  (** This begins the core definitions for dL. Note that logical
+   ** connectives such as conjunction are not defined here
+   ** because we get them for free from the definitions in
+   ** Logics.v
+   **)
 
-(** This ends the core definitions of dL.
- ** Now we state and prove a range of proof rules.
- ** - The theorems roughly follow the presentation from the
- **   uniform substitution paper; however, they are reusing
- **   Coq's logic to do substitution rather than formalizing
- **   it separately.
- **)
+  (** Box *)
+  Definition box (a : ActionProp state) (s : StateProp state) : StateProp state :=
+    mkStateVal (fun st => forall st', a st st' -> s st').
 
-(** This proof shows the connection between diamond and box. *)
-Theorem diamond_box :
-  forall (a : ActionProp) (p : StateProp),
-    <<a>> p -|- ![[a]] !p.
-Proof.
-  compute. intros.
-  split; intros.
-  { firstorder. }
-  { eapply Classical_Prop.NNPP.
-    intro. apply H. intros.
-    eapply H0. eauto. }
-Qed.
+  Notation "'[['  a ']]' p" := (box a p) (at level 70, p at next level, a at level 0).
+
+  (** Diamond *)
+  Definition diamond (a : ActionProp state) (s : StateProp state) : StateProp state :=
+    mkStateVal (fun st => exists st', a st st' /\ s st').
+
+  Notation "'<<'  a '>>' p" := (diamond a p) (at level 70, p at next level, a at level 0).
+
+  (** Negation *)
+  Notation "! p" := (p -->> lfalse) (at level 30, p at level 30).
+  (** NOTE: In constructive logic (like Coq) negation is defined to be
+   ** "implies false".
+   **)
+
+  (** This ends the core definitions of dL.
+   ** Now we state and prove a range of proof rules.
+   ** - The theorems roughly follow the presentation from the
+   **   uniform substitution paper; however, they are reusing
+   **   Coq's logic to do substitution rather than formalizing
+   **   it separately.
+   **)
+
+  (** This proof shows the connection between diamond and box. *)
+  Theorem diamond_box :
+    forall (a : ActionProp state) (p : StateProp state),
+      <<a>> p -|- ![[a]] !p.
+  Proof.
+    compute. intros.
+    split; intros.
+    { firstorder. }
+    { eapply Classical_Prop.NNPP.
+      intro. apply H. intros.
+      eapply H0. eauto. }
+  Qed.
 
 (** When formalizing "updates" it is convenient to have an operation that means
  ** "update a variable with a value". In essence, this operation characterizes
@@ -169,9 +181,6 @@ Qed.
  ** allows us to avoid defining our own substitution and free-variable
  ** relations, and it allows us to re-use a substantial bit of Coq's theory.
  **)
-(*Definition Subst (x : var) (e : StateVal R) T (X : StateVal T) : StateVal T :=
-  mkStateVal (fun st => X (state_set x (e st) st)).
-Arguments Subst _ _ [_] _. (* The [T] argument in [Subst] is implicit. *)*)
 Definition Subst T (x : var) (e : StateVal R) (X : StateVal T) : StateVal T :=
   mkStateVal (fun st => X (state_set x (e st) st)).
 Arguments Subst [_] _ _ _. (* The [T] argument in [Subst] is implicit. *)
@@ -180,7 +189,7 @@ Notation "p [ x <- e ]" := (Subst x e p) (at level 30).
 (** Discrete proof rules *)
 
 Theorem assign_rule :
-  forall (x : var) (e : StateVal R) (p : StateProp),
+  forall (x : var) (e : StateVal R) (p : StateProp state),
     [[x ::= e]] p -|- p [x <- e].
 Proof.
   destruct e. destruct p.
@@ -189,7 +198,7 @@ Proof.
 Qed.
 
 Theorem nondet_assign_rule :
-  forall (x : var) (P : StateProp),
+  forall (x : var) (P : StateProp state),
     [[x ::= ***]]P -|- Forall v : R, P [x <- pure v].
 Proof.
   destruct P. cbv beta iota delta - [string_dec].
@@ -199,7 +208,7 @@ Proof.
 Qed.
 
 Theorem test_rule :
-  forall (q p : StateProp),
+  forall (q p : StateProp state),
     [[? q]]p -|- q -->> p.
 Proof.
   destruct q. destruct p.
@@ -209,22 +218,22 @@ Proof.
 Qed.
 
 Theorem choice_rule :
-  forall (a b : ActionProp) (p : StateProp),
+  forall (a b : ActionProp state) (p : StateProp state),
     [[a +++ b]]p -|- [[a]]p //\\ [[b]]p.
 Proof. compute; firstorder. Qed.
 
 Theorem box_land :
-  forall (a : ActionProp) (p q : StateProp),
+  forall (a : ActionProp state) (p q : StateProp state),
     [[a]](p //\\ q) -|- [[a]]p //\\ [[a]]q.
 Proof. compute; firstorder. Qed.
 
 Theorem seq_rule :
-  forall (a b : ActionProp) (p : StateProp),
+  forall (a b : ActionProp state) (p : StateProp state),
     [[a ;; b]]p -|- [[a]][[b]]p.
 Proof. compute; firstorder. Qed.
 
 Theorem star_1 :
-  forall (a : ActionProp) (p : StateProp),
+  forall (a : ActionProp state) (p : StateProp state),
     [[a^*]]p -|- p //\\ [[a]][[a^*]]p.
 Proof.
   compute. split; intros.
@@ -237,12 +246,12 @@ Proof.
 Qed.
 
 Theorem K_rule :
-  forall (a : ActionProp) (p q : StateProp),
+  forall (a : ActionProp state) (p q : StateProp state),
     [[a]](p -->> q) |-- [[a]]p -->> [[a]]q.
 Proof. compute; firstorder. Qed.
 
 Theorem star_I :
-  forall (a : ActionProp) (p : StateProp),
+  forall (a : ActionProp state) (p : StateProp state),
     [[a^*]](p -->> [[a]]p) //\\ p |-- [[a^*]]p.
 Proof.
   intros. do 2 charge_revert.
@@ -254,18 +263,18 @@ Proof.
 Qed.
 
 Theorem V_rule :
-  forall (P : Prop) (a : ActionProp),
+  forall (P : Prop) (a : ActionProp state),
     (pure P) |-- [[a]](pure P).
 Proof. compute; auto. Qed.
 
 Theorem G_rule :
-  forall (p : StateProp) (a : ActionProp),
+  forall (p : StateProp state) (a : ActionProp state),
     |-- p ->
     |-- [[a]]p.
 Proof. destruct p. compute; auto. Qed.
 
 Theorem box_monotone :
-  forall (a : ActionProp) (p q : StateProp),
+  forall (a : ActionProp state) (p q : StateProp state),
     p |-- q ->
     [[a]]p |-- [[a]]q.
 Proof. compute; firstorder. Qed.
@@ -273,7 +282,7 @@ Proof. compute; firstorder. Qed.
 (** Continuous proof rules *)
 
 Theorem differential_weakening :
-  forall (dF : FlowProp) (P : StateProp),
+  forall (dF : FlowProp) (P : StateProp state),
     |-- [[dF & P]]P.
 Proof.
   cbv beta iota delta - [Rle derive_pt derivable_pt].
@@ -284,7 +293,7 @@ Proof.
 Qed.
 
 Theorem differential_weakening' :
-  forall (dF : FlowProp) (P Q : StateProp),
+  forall (dF : FlowProp) (P Q : StateProp state),
      [[dF & Q]](Q -->> P) -|- [[dF & Q]]P.
 Proof.
   split.
@@ -294,7 +303,7 @@ Proof.
 Qed.
 
 Theorem differential_cut :
-  forall (dF : FlowProp) (Q C P : StateProp),
+  forall (dF : FlowProp) (Q C P : StateProp state),
     [[dF & Q]]C //\\ [[dF & Q //\\ C]]P |-- [[dF & Q]]P.
 Proof.
   destruct dF as [ dF ]. destruct Q as [Q]. destruct C as [C]. destruct P as [P].
@@ -319,7 +328,7 @@ Definition D_state_val (e : StateVal R) (e' : FlowVal R) : Prop :=
 
 (** Differential induction. We just prove one case for now. *)
 Theorem differential_induction_leq :
-  forall (dF : FlowProp) (I : StateProp)
+  forall (dF : FlowProp) (I : StateProp state)
          (e1 e2 : StateVal R) (e1' e2' : FlowVal R),
     (D_state_val e1 e1') ->
     (D_state_val e2 e2') ->
@@ -477,14 +486,14 @@ Proof.
 Qed.
 
 Lemma Subst_limpl :
-  forall (x : var) (e : StateVal R) (p q : StateProp),
+  forall (x : var) (e : StateVal R) (p q : StateProp state),
     (p -->> q)[x <- e] -|- p[x <- e] -->> q[x <- e].
 Proof.
   unfold Subst, state_set. split; simpl; intros; auto.
 Qed.
 
 Lemma Subst_land :
-  forall (x : var) (e : StateVal R) (p q : StateProp),
+  forall (x : var) (e : StateVal R) (p q : StateProp state),
     (p //\\ q)[x <- e] -|- p[x <- e] //\\ q[x <- e].
 Proof.
   unfold Subst, state_set. split; simpl; intros; auto.
