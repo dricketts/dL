@@ -107,35 +107,35 @@ Section Logics.
   Coercion unStateVal : StateVal >-> Funclass.
 
   (* StateProp is an ILogic *)
-  Instance ILogicOps_StateProp : ILogicOps StateProp :=
+  Global Instance ILogicOps_StateProp : ILogicOps StateProp :=
     ILogicOps_iso (@mkStateVal _) (@unStateVal _).
-  Instance ILogic_StateProp : ILogic StateProp := _.
+  Global Instance ILogic_StateProp : ILogic StateProp := _.
 
   (* StateVal forms an applicative functor *)
-  Instance Applicative_StateVal : Applicative StateVal :=
+  Global Instance Applicative_StateVal : Applicative StateVal :=
   { pure := fun _ x => mkStateVal (fun _ => x)
   ; ap   := fun _ _ f x => mkStateVal (fun st => f st (x st)) }.
 
   Coercion unActionVal : ActionVal >-> Funclass.
 
   (** ActionProp is an ILogic. *)
-  Instance ILogicOps_ActionProp : ILogicOps ActionProp :=
+  Global Instance ILogicOps_ActionProp : ILogicOps ActionProp :=
     ILogicOps_iso (@mkActionVal _) (@unActionVal _).
-  Instance ILogic_ActionProp : ILogic ActionProp := _.
+  Global Instance ILogic_ActionProp : ILogic ActionProp := _.
 
   (** ActionVal forms an applicative functor. *)
-  Instance Applicative_ActionVal : Applicative ActionVal :=
+  Global Instance Applicative_ActionVal : Applicative ActionVal :=
   { pure := fun _ x => mkActionVal (fun _ _ => x)
   ; ap   := fun _ _ f x => mkActionVal (fun st st' => f st st' (x st st')) }.
 
   Coercion unFlowVal : FlowVal >-> Funclass.
 
   (** FlowProp forms an ILogic. *)
-  Instance ILogicOps_FlowProp : ILogicOps FlowProp :=
+  Global Instance ILogicOps_FlowProp : ILogicOps FlowProp :=
     ILogicOps_iso (@mkFlowVal _) (@unFlowVal _).
-  Instance ILogic_FlowProp : ILogic FlowProp := _.
+  Global Instance ILogic_FlowProp : ILogic FlowProp := _.
 
-  Instance Applicative_FlowVal : Applicative FlowVal :=
+  Global Instance Applicative_FlowVal : Applicative FlowVal :=
   { pure := fun _ x => mkFlowVal (fun _ _ => x)
   ; ap   := fun _ _ f x => mkFlowVal (fun st st' => f st st' (x st st')) }.
 

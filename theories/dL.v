@@ -1,5 +1,6 @@
 Require Import Coq.Strings.String.
 Require Import Coq.Reals.Reals.
+Require Import Coquelicot.Coquelicot.
 Require Import Coq.micromega.Psatz.
 Require Import Coq.Logic.FunctionalExtensionality.
 (** Since dL's logic is classical, we include Coq's axiomatization of classical
@@ -59,14 +60,18 @@ Section dL.
              {pf : fields_get x vars = Some T} : ActionProp state :=
     mkActionVal (fun st st' => st' = state_set (pf:=pf) x (e st) st).
 
-  Notation "x ::= e" := (@assign x _ e eq_refl) (at level 80, e at level 70).
+  (* The following tactic will attempt to prove that a var has a particular
+     type in vars. This is necessary for having nice notation. *)
+  Ltac fields_get_tac :=
+    try solve [ exact eq_refl | eassumption ].
+  Notation "x ::= e" := (@assign x _ e ltac:(fields_get_tac)) (at level 80, e at level 70).
 
   (** Non-deterministic assignment *)
   Definition nondet_assign (x : var) {T : Type}
              {pf : fields_get x vars = Some T} : ActionProp state :=
     mkActionVal (fun st st' => exists (v : T), st' = state_set (pf:=pf) x v st).
 
-  Notation "x ::= ***" := (@nondet_assign x _ eq_refl) (at level 80).
+  Notation "x ::= ***" := (@nondet_assign x _ ltac:(fields_get_tac)) (at level 80).
 
   (** Test *)
   Definition test (t : StateProp state) : ActionProp state :=
@@ -74,10 +79,9 @@ Section dL.
 
   Notation "? e" := (test e) (at level 80, e at level 70).
 
-  Require Import Coquelicot.Coquelicot.
   Section Continuous.
 
-    Variable cstate : NormedModule R_AbsRing.
+    Context {cstate : NormedModule R_AbsRing}.
 
     (** Continuous transitions. *)
     (** This gives the semantic definition of a continuous evolution
@@ -88,26 +92,35 @@ Section dL.
         (fun st st' =>
            exists (r : R) (F : R -> cstate),
              0 <= r /\ F 0 = st /\ F r = st' /\
-             forall t, 0 <= t <= r ->
-                       exists (D : cstate),
-                         is_derive F t D /\
-                         dF (F t) D /\ I (F t)).
+             (forall t, 0 <= t <= r -> I (F t)) /\
+             (exists (D : R -> cstate),
+                 (forall t : R, is_derive F t (D t)) /\
+                 forall t, 0 <= t <= r ->
+                           is_derive F t (D t) /\
+                           dF (F t) (D t))).
 
-    Variable to_cstate : state -> cstate.
-    Variable from_cstate : state -> cstate -> state.
+    Class ProjState :=
+      { to_cstate : state -> cstate;
+        from_cstate : state -> cstate -> state;
+        Hinv : forall st cst, to_cstate (from_cstate st cst) = cst }.
+    Context {PInst : ProjState}.
+
+    Definition proj_StateProp (p : StateProp cstate) : StateProp state :=
+      mkStateVal
+        (fun st => p (to_cstate st)).
+    Definition proj_ActionProp (a : ActionProp cstate) : ActionProp state :=
+      mkActionVal
+        (fun st st' => a (to_cstate st) (to_cstate st') /\
+                       st' = from_cstate st (to_cstate st')).
 
     Definition evolve (dF : FlowProp cstate) (I : StateProp cstate)
       : ActionProp state :=
-      mkActionVal
-        (fun st st' =>
-           evolve' dF I (to_cstate st) (to_cstate st') /\
-           st' = from_cstate st (to_cstate st')).
-
-    Notation "d & I" := (evolve d I) (at level 80, I at level 79).
-    Notation "'d[' x ']'" := (mkFlowVal (fun _ st' => st' x)) (at level 30).
-    Notation "'#[' e ']'" := (mkFlowVal (fun st _ => e st)) (at level 30).
+      proj_ActionProp (evolve' dF I).
 
   End Continuous.
+  Notation "d & I" := (evolve d I) (at level 80, I at level 79).
+  Notation "'d[' x ']'" := (mkFlowVal (fun _ st' => st' x)) (at level 30).
+  Notation "'#[' e ']'" := (mkFlowVal (fun st _ => e st)) (at level 30).
 
   (** Choice *)
   Definition choice (a b : ActionProp state) : ActionProp state :=
@@ -175,248 +188,280 @@ Section dL.
       eapply H0. eauto. }
   Qed.
 
-(** When formalizing "updates" it is convenient to have an operation that means
- ** "update a variable with a value". In essence, this operation characterizes
- ** substitution in a semantic way using Coq's existing notions. Doing this
- ** allows us to avoid defining our own substitution and free-variable
- ** relations, and it allows us to re-use a substantial bit of Coq's theory.
- **)
-Definition Subst T (x : var) (e : StateVal R) (X : StateVal T) : StateVal T :=
-  mkStateVal (fun st => X (state_set x (e st) st)).
-Arguments Subst [_] _ _ _. (* The [T] argument in [Subst] is implicit. *)
-Notation "p [ x <- e ]" := (Subst x e p) (at level 30).
+  (** When formalizing "updates" it is convenient to have an operation that means
+   ** "update a variable with a value". In essence, this operation characterizes
+   ** substitution in a semantic way using Coq's existing notions. Doing this
+   ** allows us to avoid defining our own substitution and free-variable
+   ** relations, and it allows us to re-use a substantial bit of Coq's theory.
+   **)
+  Definition Subst T U (x : var) (e : StateVal state U)
+             (X : StateVal state T) (pf : fields_get x vars = Some U) : StateVal state T :=
+    mkStateVal (fun st => X (state_set (pf:=pf) x (e st) st)).
+  Arguments Subst [_ _] _ _ _ _. (* The [T] argument in [Subst] is implicit. *)
+  Notation "p {{ x <- e }}" := (Subst x e p ltac:(fields_get_tac))
+                                 (at level 30).
 
-(** Discrete proof rules *)
+  (** Discrete proof rules *)
+  Theorem assign_rule :
+    forall (T : Type) (x : var) (e : StateVal state T) (p : StateProp state)
+           (pf : fields_get x vars = Some T),
+      [[x ::= e]] p -|- p {{x <- e}}.
+  Proof.
+    destruct e. destruct p.
+    cbv beta iota delta - [string_dec]. split; intros; eauto.
+    subst; auto.
+  Qed.
 
-Theorem assign_rule :
-  forall (x : var) (e : StateVal R) (p : StateProp state),
-    [[x ::= e]] p -|- p [x <- e].
-Proof.
-  destruct e. destruct p.
-  cbv beta iota delta - [string_dec]. split; intros; eauto.
-  subst; auto.
-Qed.
+(*
+Variables (T : Type) (x : var) (P : StateProp state)
+           (pf : fields_get x vars = Some T).
+Check Forall v : T, P {{x <- pure v}}.
+Check [[x ::= ***]]P.
+*)
+(*
+Print lforall.
+  Theorem nondet_assign_rule :
+    forall (T : Type) (x : var) (P : StateProp state)
+           (pf : fields_get x vars = Some T),
+      @lequiv _ (ILogicOps_StateProp _)
+              ([[x ::= ***]]P)
+              (@lforall _ (ILogicOps_StateProp _) _
+(*                        (fun v : T => (P {{x <- pure v}}))).*)
+                        (fun v : T => (Subst x (pure v) P ltac:(fields_get_tac)))).
 
-Theorem nondet_assign_rule :
-  forall (x : var) (P : StateProp state),
-    [[x ::= ***]]P -|- Forall v : R, P [x <- pure v].
-Proof.
-  destruct P. cbv beta iota delta - [string_dec].
-  split; intros.
-  { eapply H. eauto. }
-  { destruct H0. subst. eauto. }
-Qed.
+  Theorem nondet_assign_rule :
+    forall (T : Type) (x : var) (P : StateProp state)
+           (pf : fields_get x vars = Some T),
+      @lequiv (StateProp state) (ILogicOps_StateProp _) ([[x ::= ***]]P) (Forall v : T, P {{x <- pure v}}).
+  Proof.
+    destruct P. cbv beta iota delta - [string_dec].
+    split; intros.
+    { eapply H. eauto. }
+    { destruct H0. subst. eauto. }
+  Qed.
+*)
+  Theorem test_rule :
+    forall (q p : StateProp state),
+      [[? q]]p -|- q -->> p.
+  Proof.
+    destruct q. destruct p.
+    compute. split.
+    { intuition. }
+    { intros. destruct H0. subst. auto. }
+  Qed.
 
-Theorem test_rule :
-  forall (q p : StateProp state),
-    [[? q]]p -|- q -->> p.
-Proof.
-  destruct q. destruct p.
-  compute. split.
-  { intuition. }
-  { intros. destruct H0. subst. auto. }
-Qed.
+  Theorem choice_rule :
+    forall (a b : ActionProp state) (p : StateProp state),
+      [[a +++ b]]p -|- [[a]]p //\\ [[b]]p.
+  Proof. compute; firstorder. Qed.
 
-Theorem choice_rule :
-  forall (a b : ActionProp state) (p : StateProp state),
-    [[a +++ b]]p -|- [[a]]p //\\ [[b]]p.
-Proof. compute; firstorder. Qed.
+  Theorem box_land :
+    forall (a : ActionProp state) (p q : StateProp state),
+      [[a]](p //\\ q) -|- [[a]]p //\\ [[a]]q.
+  Proof. compute; firstorder. Qed.
 
-Theorem box_land :
-  forall (a : ActionProp state) (p q : StateProp state),
-    [[a]](p //\\ q) -|- [[a]]p //\\ [[a]]q.
-Proof. compute; firstorder. Qed.
+  Theorem seq_rule :
+    forall (a b : ActionProp state) (p : StateProp state),
+      [[a ;; b]]p -|- [[a]][[b]]p.
+  Proof. compute; firstorder. Qed.
 
-Theorem seq_rule :
-  forall (a b : ActionProp state) (p : StateProp state),
-    [[a ;; b]]p -|- [[a]][[b]]p.
-Proof. compute; firstorder. Qed.
+  Theorem star_1 :
+    forall (a : ActionProp state) (p : StateProp state),
+      [[a^*]]p -|- p //\\ [[a]][[a^*]]p.
+  Proof.
+    compute. split; intros.
+    { split.
+      { apply H; constructor. }
+      { intros. apply H. econstructor; eauto. } }
+    { inversion H0.
+      { subst; tauto. }
+      { subst st'. destruct H. eapply H3; eauto. } }
+  Qed.
 
-Theorem star_1 :
-  forall (a : ActionProp state) (p : StateProp state),
-    [[a^*]]p -|- p //\\ [[a]][[a^*]]p.
-Proof.
-  compute. split; intros.
-  { split.
-    { apply H; constructor. }
-    { intros. apply H. econstructor; eauto. } }
-  { inversion H0.
-    { subst; tauto. }
-    { subst st'. destruct H. eapply H3; eauto. } }
-Qed.
+  Theorem K_rule :
+    forall (a : ActionProp state) (p q : StateProp state),
+      [[a]](p -->> q) |-- [[a]]p -->> [[a]]q.
+  Proof. compute; firstorder. Qed.
 
-Theorem K_rule :
-  forall (a : ActionProp state) (p q : StateProp state),
-    [[a]](p -->> q) |-- [[a]]p -->> [[a]]q.
-Proof. compute; firstorder. Qed.
+  Theorem star_I :
+    forall (a : ActionProp state) (p : StateProp state),
+      [[a^*]](p -->> [[a]]p) //\\ p |-- [[a^*]]p.
+  Proof.
+    intros. do 2 charge_revert.
+    compute. intros. induction H2.
+    { assumption. }
+    { apply IHstar'.
+      { intros. eapply H0; eauto. econstructor; eauto. }
+      { eapply H0; eauto. constructor. } }
+  Qed.
 
-Theorem star_I :
-  forall (a : ActionProp state) (p : StateProp state),
-    [[a^*]](p -->> [[a]]p) //\\ p |-- [[a^*]]p.
-Proof.
-  intros. do 2 charge_revert.
-  compute. intros. induction H2.
-  { assumption. }
-  { apply IHstar'.
-    { intros. eapply H0; eauto. econstructor; eauto. }
-    { eapply H0; eauto. constructor. } }
-Qed.
+  Theorem V_rule :
+    forall (P : Prop) (a : ActionProp state),
+      (pure P) |-- [[a]](pure P).
+  Proof. compute; auto. Qed.
 
-Theorem V_rule :
-  forall (P : Prop) (a : ActionProp state),
-    (pure P) |-- [[a]](pure P).
-Proof. compute; auto. Qed.
+  Theorem G_rule :
+    forall (p : StateProp state) (a : ActionProp state),
+      |-- p ->
+      |-- [[a]]p.
+  Proof. destruct p. compute; auto. Qed.
 
-Theorem G_rule :
-  forall (p : StateProp state) (a : ActionProp state),
-    |-- p ->
-    |-- [[a]]p.
-Proof. destruct p. compute; auto. Qed.
+  Theorem box_monotone :
+    forall (a : ActionProp state) (p q : StateProp state),
+      p |-- q ->
+      [[a]]p |-- [[a]]q.
+  Proof. compute; firstorder. Qed.
 
-Theorem box_monotone :
-  forall (a : ActionProp state) (p q : StateProp state),
-    p |-- q ->
-    [[a]]p |-- [[a]]q.
-Proof. compute; firstorder. Qed.
+  (** Continuous proof rules *)
 
-(** Continuous proof rules *)
+  Section ContinuousRules.
 
-Theorem differential_weakening :
-  forall (dF : FlowProp) (P : StateProp state),
-    |-- [[dF & P]]P.
-Proof.
-  cbv beta iota delta - [Rle derive_pt derivable_pt].
-  intros. destruct H0 as [r [F [pf H0] ] ].
-  destruct H0 as [Hr [HF0 [HFr HFt] ] ].
-  specialize (HFt r). assert (0 <= r <= r) by psatzl R.
-  intuition congruence.
-Qed.
+    Context {cstate : NormedModule R_AbsRing}.
+    Context { PInst : @ProjState cstate }.
+    
+    Theorem differential_weakening :
+      forall (dF : FlowProp cstate) (P : StateProp cstate),
+        |-- [[dF & P]] proj_StateProp P.
+    Proof.
+      destruct cstate. destruct P as [P].
+      cbv beta iota delta - [Rle is_derive].
+      intros. destruct H0 as [ [r [F H0] ] ?].
+      destruct H0 as [Hr [HF0 [HFr [HFI ?] ] ] ].
+      specialize (HFI r). assert (0 <= r <= r) by psatzl R.
+      intuition congruence.
+    Qed.
 
-Theorem differential_weakening' :
-  forall (dF : FlowProp) (P Q : StateProp state),
-     [[dF & Q]](Q -->> P) -|- [[dF & Q]]P.
-Proof.
-  split.
-  { rewrite K_rule. pose proof (differential_weakening dF Q).
-    charge_tauto. }
-  { charge_revert. rewrite <- K_rule. apply G_rule. charge_tauto. }
-Qed.
+    Theorem differential_weakening' :
+      forall (dF : FlowProp cstate) (P Q : StateProp cstate),
+        [[dF & Q]](proj_StateProp Q -->> proj_StateProp P) -|- [[dF & Q]]proj_StateProp P.
+    Proof.
+      split.
+      { rewrite K_rule. pose proof (differential_weakening dF Q).
+        charge_tauto. }
+      { charge_revert. rewrite <- K_rule. apply G_rule. charge_tauto. }
+    Qed.
 
-Theorem differential_cut :
-  forall (dF : FlowProp) (Q C P : StateProp state),
-    [[dF & Q]]C //\\ [[dF & Q //\\ C]]P |-- [[dF & Q]]P.
-Proof.
-  destruct dF as [ dF ]. destruct Q as [Q]. destruct C as [C]. destruct P as [P].
-  cbv beta iota delta - [Rle derive_pt derivable_pt].
-  intros. destruct H as [HC HCP]. apply HCP.
-  destruct H0 as [r [F [pf H0] ] ]. exists r. exists F.
-  exists pf. repeat (split; [ tauto | ]).
-  intros. rewrite <- and_assoc. split.
-  { apply H0; auto. }
-  { apply HC. exists t0. exists F. exists pf. repeat (split; [ tauto | ]).
-    intros. apply H0. psatzl R. }
-Qed.
+    Theorem differential_cut :
+      forall (dF : FlowProp cstate) (Q C P : StateProp cstate),
+            [[dF & Q]]proj_StateProp C //\\ [[dF & Q //\\ C]]proj_StateProp P
+        |-- [[dF & Q]]proj_StateProp P.
+    Proof.
+      destruct dF as [ dF ]. destruct Q as [Q]. destruct C as [C]. destruct P as [P].
+      cbv beta iota delta - [Rle is_derive].
+      intros. destruct H as [HC HCP]. apply HCP.
+      destruct H0 as [ [r [F [Hr [HF0 [HFr [HFI [D [HFD1 HFD2] ] ] ] ] ] ] ] ? ].
+      split.
+      { exists r. exists F. repeat (split; [ assumption | ]).
+        split.
+        { intros. split; auto.
+          specialize (HC (from_cstate t (F t0))). simpl in *.
+          rewrite <- Hinv with (st:=t). apply HC. split.
+          { exists t0. exists F. repeat (split; [ tauto | ]).
+              split.
+              { rewrite <- Hinv at 1. reflexivity. }
+              { split.
+                { intros; apply HFI; psatzl R. }
+                { exists D. intros. split; intros; [ apply HFD1 | apply HFD2 ]. psatzl R. } } }
+          { rewrite <- Hinv at 1. reflexivity. } }
+        { exists D. intros. split; intros; [ apply HFD1 | apply HFD2 ]. psatzl R. } }
+      { assumption. }
+    Qed.
 
-(** [D_state_val e e'] states that [e'] is the derivative of [e]. *)
-Definition D_state_val (e : StateVal R) (e' : FlowVal R) : Prop :=
-  forall (f : R -> state)
-         (derivable_f : forall (x : var), derivable (fun t => f t x)),
-    exists derivable_e : derivable (fun t => e (f t)),
-      forall (t : R),
-        derive_pt (fun t => e (f t)) t (derivable_e t) =
-        e' (f t) (fun x => derive_pt (fun t => f t x) t (derivable_f x t)).
+    (** [D_state_val e e'] states that [e'] is the derivative of [e]. *)
+    Definition D_state_val (e : StateVal cstate R) (e' : FlowVal cstate R) : Prop :=
+      forall (F : R -> cstate) (D : R -> cstate) (t : R),
+              is_derive F t (D t) ->
+              is_derive (fun t => e (F t)) t (e' (F t) (D t)).
 
-(** Differential induction. We just prove one case for now. *)
-Theorem differential_induction_leq :
-  forall (dF : FlowProp) (I : StateProp state)
-         (e1 e2 : StateVal R) (e1' e2' : FlowVal R),
-    (D_state_val e1 e1') ->
-    (D_state_val e2 e2') ->
-    dF //\\ #[I] |-- e1' [<=] e2' ->
-    I -->> (e1 [<=] e2) |-- [[dF & I]](e1 [<=] e2).
-Proof.
-  destruct dF as [dF]. destruct I as [I]. destruct e1 as [e1].
-  destruct e2 as [e2]. destruct e1' as [e1']. destruct e2' as [e2'].
-  unfold D_state_val. simpl. intros.
-  destruct H3 as [r [f [pf [Hr [Hf0 [Hfr HdF] ] ] ] ] ].
-  specialize (H f (fun x => pf x)). specialize (H0 f (fun x => pf x)).
-  destruct H. destruct H0. apply Rminus_le.
-  assert (I (f 0)).
-  { apply HdF; psatzl R. }
-  assert (e2 (f 0) - e1 (f 0) <= e2 (f r) - e1 (f r)).
-  { destruct Hr.
-    { eapply derive_increasing_interv_var
-      with (f:=fun t => e2 (f t) - e1 (f t)) (a:=0) (b:=r);
-      try psatzl R. Unshelve. Focus 2. unfold derivable.
-      intros. apply derivable_pt_minus; eauto.
-      intros. simpl.
-      rewrite derive_pt_minus
-      with (f1:=fun t => e2 (f t)) (f2:=fun t => e1 (f t)).
-      rewrite H. rewrite H0.
-      assert (dF (f t0)
-                 (fun x1 : var => derive_pt
-                                    (fun t1 : R => f t1 x1) t0
-                                    (pf x1 t0)) /\ I (f t0)).
-      { apply HdF; psatzl R. }
-      apply H1 in H6. psatzl R. }
-    { subst. psatzl R. } }
-  { subst. intuition; psatzl R. }
-Qed.
+    (** Differential induction. We just prove one case for now. *)
+    Theorem differential_induction_leq :
+      forall (dF : FlowProp cstate) (I : StateProp cstate)
+             (e1 e2 : StateVal cstate R) (e1' e2' : FlowVal cstate R),
+        (D_state_val e1 e1') ->
+        (D_state_val e2 e2') ->
+        dF //\\ #[I] |-- e1' [<=] e2' ->
+        proj_StateProp I -->> proj_StateProp (e1 [<=] e2) |-- [[dF & I]]proj_StateProp (e1 [<=] e2).
+    Proof.
+      destruct dF as [dF]. destruct I as [I]. destruct e1 as [e1].
+      destruct e2 as [e2]. destruct e1' as [e1']. destruct e2' as [e2'].
+      unfold D_state_val. simpl. intros.
+      destruct H3 as [ [ r [f [Hr [Hf0 [Hfr [HI [D [HFD1 HFD2] ] ] ] ] ] ] ] ?].
+      apply Rminus_le. assert (I (f 0)).
+      { apply HI; psatzl R. }
+      assert (e2 (f 0) - e1 (f 0) <= e2 (f r) - e1 (f r)).
+      { destruct Hr.
+        { specialize (H f D). specialize (H0 f D).
+          eapply derive_increasing_interv_var
+          with (f:=fun t => e2 (f t) - e1 (f t)) (a:=0) (b:=r);
+          try psatzl R. intros. assert (0 <= t0 <= r) by psatzl R.
+          Unshelve.
+          2: (unfold derivable; intros; apply ex_derive_Reals_0;
+              eapply ex_derive_minus
+              with (f0:=fun t => e2 (f t)) (g:=fun t => e1 (f t));
+              eexists; [ apply H0 | apply H ]; apply HFD1).
+          rewrite Derive_Reals. rewrite Derive_minus; [ | eexists; eauto | eexists; eauto ].
+          assert (is_derive f t0 (D t0)) as Hderivf by (apply HFD1; assumption).
+          specialize (H t0 Hderivf). specialize (H0 t0 Hderivf).
+          apply is_derive_unique in H. apply is_derive_unique in H0.
+          rewrite H. rewrite H0. specialize (H1 (f t0) (D t0)).
+          assert (dF (f t0) (D t0) /\ I (f t0)).
+          { split; [ apply HFD2 | apply HI ]; psatzl R. }
+          intuition psatzl R. }
+        { subst r. psatzl R. } }
+      { rewrite <- Hfr. rewrite <- Hf0 in *. intuition psatzl R. }
+    Qed.
 
-Theorem D_state_val_var :
-  forall (x : var),
-    D_state_val (get x) (d[x]).
-Proof.
-  unfold D_state_val, get. simpl. intros.
-  exists (derivable_f x). reflexivity.
-Qed.
+(*
+    Theorem D_state_val_var :
+      forall (x : var),
+        D_state_val (get x) (d[x]).
+    Proof.
+      unfold D_state_val, get. simpl. intros.
+      exists (derivable_f x). reflexivity.
+    Qed.
+*)
 
-Theorem D_state_val_pure :
-  forall (x : R),
-    D_state_val (pure x) (pure 0).
-Proof.
-  unfold D_state_val, pure. simpl. intros.
-  exists (derivable_pt_const x).
-  intros. rewrite <- (derive_pt_const x t).
-  reflexivity.
-Qed.
+    Theorem D_state_val_pure :
+      forall (x : R),
+        D_state_val (pure x) (pure 0).
+    Proof.
+      unfold D_state_val, pure. simpl. intros.
+      auto_derive; intuition psatzl R.
+    Qed.
 
-Theorem D_state_val_plus :
-  forall (e1 e2 : StateVal R) (e1' e2' : FlowVal R),
-    D_state_val e1 e1' ->
-    D_state_val e2 e2' ->
-    D_state_val (e1 [+] e2) (e1' [+] e2').
-Proof.
-  unfold D_state_val, get. simpl. intros.
-  specialize (H f derivable_f). specialize (H0 f derivable_f).
-  destruct H. destruct H0. unfold derivable. eexists.
-  intros. rewrite <- H. rewrite <- H0. apply derive_pt_plus.
-Qed.
+    Theorem D_state_val_plus :
+      forall (e1 e2 : StateVal cstate R) (e1' e2' : FlowVal cstate R),
+        D_state_val e1 e1' ->
+        D_state_val e2 e2' ->
+        D_state_val (e1 [+] e2) (e1' [+] e2').
+    Proof.
+      unfold D_state_val, get. simpl. intros.
+      specialize (H F D t H1). specialize (H0 F D t H1).
+      apply (is_derive_plus _ _ _ _ _ H H0).
+    Qed.
 
-Theorem D_state_val_minus :
-  forall (e1 e2 : StateVal R) (e1' e2' : FlowVal R),
-    D_state_val e1 e1' ->
-    D_state_val e2 e2' ->
-    D_state_val (e1 [-] e2) (e1' [-] e2').
-Proof.
-  unfold D_state_val, get. simpl. intros.
-  specialize (H f derivable_f). specialize (H0 f derivable_f).
-  destruct H. destruct H0. unfold derivable. eexists.
-  intros. rewrite <- H. rewrite <- H0. apply derive_pt_minus.
-Qed.
+    Theorem D_state_val_minus :
+      forall (e1 e2 : StateVal cstate R) (e1' e2' : FlowVal cstate R),
+        D_state_val e1 e1' ->
+        D_state_val e2 e2' ->
+        D_state_val (e1 [-] e2) (e1' [-] e2').
+    Proof.
+      unfold D_state_val, get. simpl. intros.
+      specialize (H F D t H1). specialize (H0 F D t H1).
+      apply (is_derive_minus _ _ _ _ _ H H0).
+    Qed.
 
-Theorem D_state_val_mult :
-  forall (e1 e2 : StateVal R) (e1' e2' : FlowVal R),
-    D_state_val e1 e1' ->
-    D_state_val e2 e2' ->
-    D_state_val (e1 [*] e2) ((e1' [*] #[e2]) [+] (#[e1] [*] e2')).
-Proof.
-  unfold D_state_val, get. simpl. intros.
-  specialize (H f derivable_f). specialize (H0 f derivable_f).
-  destruct H. destruct H0. unfold derivable. eexists.
-  intros. rewrite <- H. rewrite <- H0.
-  apply derive_pt_mult with (f1:=fun t => e1 (f t)) (f2:=fun t => e2 (f t)).
-Qed.
+    Theorem D_state_val_mult :
+      forall (e1 e2 : StateVal cstate R) (e1' e2' : FlowVal cstate R),
+        D_state_val e1 e1' ->
+        D_state_val e2 e2' ->
+        D_state_val (e1 [*] e2) ((e1' [*] #[e2]) [+] (#[e1] [*] e2')).
+    Proof.
+      unfold D_state_val, get. simpl. intros.
+      specialize (H F D t H1). specialize (H0 F D t H1).
+      apply (is_derive_mult _ _ _ _ _ H H0).
+      compute. intros. apply Rmult_comm.
+    Qed.
 
 (** Some automation using Ltac (Coq's tactic language). *)
 
