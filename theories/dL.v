@@ -212,14 +212,6 @@ Section dL.
     subst; auto.
   Qed.
 
-(*
-Variables (T : Type) (x : var) (P : StateProp state)
-           (pf : fields_get x vars = Some T).
-Check Forall v : T, P {{x <- pure v}}.
-Check [[x ::= ***]]P.
-*)
-(*
-Print lforall.
   Theorem nondet_assign_rule :
     forall (T : Type) (x : var) (P : StateProp state)
            (pf : fields_get x vars = Some T),
@@ -228,18 +220,17 @@ Print lforall.
               (@lforall _ (ILogicOps_StateProp _) _
 (*                        (fun v : T => (P {{x <- pure v}}))).*)
                         (fun v : T => (Subst x (pure v) P ltac:(fields_get_tac)))).
-
-  Theorem nondet_assign_rule :
-    forall (T : Type) (x : var) (P : StateProp state)
+(* We want to be able to write:
+forall (T : Type) (x : var) (P : StateProp state)
            (pf : fields_get x vars = Some T),
-      @lequiv (StateProp state) (ILogicOps_StateProp _) ([[x ::= ***]]P) (Forall v : T, P {{x <- pure v}}).
+      [[x ::= ***]]P -|- (Forall v : T, P {{x <- pure v}}. *)
   Proof.
     destruct P. cbv beta iota delta - [string_dec].
     split; intros.
     { eapply H. eauto. }
     { destruct H0. subst. eauto. }
   Qed.
-*)
+
   Theorem test_rule :
     forall (q p : StateProp state),
       [[? q]]p -|- q -->> p.
