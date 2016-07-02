@@ -19,6 +19,8 @@ Local Transparent ILInsts.ILFun_Ops.
 Local Open Scope R.
 Local Open Scope string_scope.
 
+Set Implicit Arguments.
+
 (** This file formalizes dL using the logics defined in Logics.v *)
 
 (** First, we define some notation to lift standard operators into
@@ -81,7 +83,13 @@ Section dL.
 
   Section Continuous.
 
-    Context {cstate : NormedModule R_AbsRing}.
+    Class Derivable (T : Type) :=
+      { T_class_of : NormedModule.class_of R_AbsRing T }.
+
+    Variable cstate : Type.
+    Context { DInst : Derivable cstate }.
+    Local Definition cstate_NormedModule := NormedModule.Pack _ _ T_class_of cstate.
+    Canonical cstate_NormedModule.
 
     (** Continuous transitions. *)
     (** This gives the semantic definition of a continuous evolution
@@ -119,7 +127,7 @@ Section dL.
 
   End Continuous.
   Notation "d & I" := (evolve d I) (at level 80, I at level 79).
-  Notation "'d[' x ']'" := (mkFlowVal (fun _ st' => st' x)) (at level 30).
+  Notation "'d[' x ']'" := (mkFlowVal (fun _ st' => @get x _ ltac:(fields_get_tac))) (at level 30).
   Notation "'#[' e ']'" := (mkFlowVal (fun st _ => e st)) (at level 30).
 
   (** Choice *)
@@ -307,14 +315,15 @@ forall (T : Type) (x : var) (P : StateProp state)
 
   Section ContinuousRules.
 
-    Context {cstate : NormedModule R_AbsRing}.
+    Variable cstate : Type.
+    Context { DInst : Derivable cstate }.
     Context { PInst : @ProjState cstate }.
     
     Theorem differential_weakening :
       forall (dF : FlowProp cstate) (P : StateProp cstate),
         |-- [[dF & P]] proj_StateProp P.
     Proof.
-      destruct cstate. destruct P as [P].
+      destruct P as [P].
       cbv beta iota delta - [Rle is_derive].
       intros. destruct H0 as [ [r [F H0] ] ?].
       destruct H0 as [Hr [HF0 [HFr [HFI ?] ] ] ].
@@ -327,7 +336,7 @@ forall (T : Type) (x : var) (P : StateProp state)
         [[dF & Q]](proj_StateProp Q -->> proj_StateProp P) -|- [[dF & Q]]proj_StateProp P.
     Proof.
       split.
-      { rewrite K_rule. pose proof (differential_weakening dF Q).
+      { rewrite K_rule. pose proof (differential_weakening). specialize (H dF Q).
         charge_tauto. }
       { charge_revert. rewrite <- K_rule. apply G_rule. charge_tauto. }
     Qed.
@@ -346,14 +355,14 @@ forall (T : Type) (x : var) (P : StateProp state)
         split.
         { intros. split; auto.
           specialize (HC (from_cstate t (F t0))). simpl in *.
-          rewrite <- Hinv with (st:=t). apply HC. split.
+          rewrite <- Hinv with (ProjState:=PInst) (st:=t). apply HC. split.
           { exists t0. exists F. repeat (split; [ tauto | ]).
               split.
-              { rewrite <- Hinv at 1. reflexivity. }
+              { rewrite <- Hinv with (ProjState:=PInst) at 1. reflexivity. }
               { split.
                 { intros; apply HFI; psatzl R. }
                 { exists D. intros. split; intros; [ apply HFD1 | apply HFD2 ]. psatzl R. } } }
-          { rewrite <- Hinv at 1. reflexivity. } }
+          { rewrite <- Hinv with (ProjState:=PInst) at 1. reflexivity. } }
         { exists D. intros. split; intros; [ apply HFD1 | apply HFD2 ]. psatzl R. } }
       { assumption. }
     Qed.
@@ -402,16 +411,6 @@ forall (T : Type) (x : var) (P : StateProp state)
       { rewrite <- Hfr. rewrite <- Hf0 in *. intuition psatzl R. }
     Qed.
 
-(*
-    Theorem D_state_val_var :
-      forall (x : var),
-        D_state_val (get x) (d[x]).
-    Proof.
-      unfold D_state_val, get. simpl. intros.
-      exists (derivable_f x). reflexivity.
-    Qed.
-*)
-
     Theorem D_state_val_pure :
       forall (x : R),
         D_state_val (pure x) (pure 0).
@@ -453,6 +452,20 @@ forall (T : Type) (x : var) (P : StateProp state)
       apply (is_derive_mult _ _ _ _ _ H H0).
       compute. intros. apply Rmult_comm.
     Qed.
+
+  End ContinuousRules.
+
+  Theorem D_state_val_var :
+    forall (x : var) (cvars : fields)
+           (pf : fields_get x cvars = @Some Type R)
+           (H : Derivable (record cvars)),
+      D_state_val (mkStateVal (fun st => Rget st x pf))
+                  (mkFlowVal (fun st st' => Rget st' x pf)).
+  Proof.
+    unfold D_state_val, Rget. simpl. intros.
+  (* ?????? *)
+  Admitted.
+
 
 (** Some automation using Ltac (Coq's tactic language). *)
 
