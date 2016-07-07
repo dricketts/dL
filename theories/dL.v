@@ -28,18 +28,25 @@ Set Implicit Arguments.
  ** terms in dL, but anything of type [StateVal T] is a term of
  ** type T.
  **)
-Notation "a [+] b" := (pure Rplus <$> a <$> b) (at level 50, left associativity).
-Notation "a [-] b" := (pure Rminus <$> a <$> b) (at level 50, left associativity).
-Notation "a [*] b" := (pure Rmult <$> a <$> b) (at level 40, left associativity).
-Notation "a [>=] b" := (pure Rge <$> a <$> b) (at level 70, right associativity).
-Notation "a [<=] b" := (pure Rle <$> a <$> b) (at level 70, right associativity).
-Notation "a [=] b" := (pure (@eq R) <$> a <$> b) (at level 70, right associativity).
+Notation "a [+] b" := (pure Rplus <*> a <*> b) (at level 50, left associativity).
+Notation "a [-] b" := (pure Rminus <*> a <*> b) (at level 50, left associativity).
+Notation "a [*] b" := (pure Rmult <*> a <*> b) (at level 40, left associativity).
+Notation "a [>=] b" := (pure Rge <*> a <*> b) (at level 70, right associativity).
+Notation "a [<=] b" := (pure Rle <*> a <*> b) (at level 70, right associativity).
+Notation "a [=] b" := (pure (@eq R) <*> a <*> b) (at level 70, right associativity).
 
 Section dL.
 
   Definition var : Type := string.
   Variable vars : fields.
   Definition state : Type := record vars.
+
+  (** TODO: This should be moved to the extensible records repository *)
+  Class FieldOf vars x T : Prop := mkFieldOf
+  { _field_proof : fields_get x vars = Some T }.
+  Arguments _field_proof [_ _ _] _.
+
+  Hint Extern 0 (FieldOf _ _ _) => constructor; reflexivity : typeclass_instances.
 
   (** We use the following to lift variables into
    ** [StateVal]s, which allows us to extract values
@@ -48,32 +55,37 @@ Section dL.
    ** Writing [get "x"] is the equivalent of writing
    ** x in dL. A proper interface should hide this.
    **)
-  Definition get (x : var) {T : Type} {pf : fields_get x vars = Some T} : StateVal state T :=
-    mkStateVal (fun st => Rget st x pf).
+  Definition get (x : var) {T : Type} {pf : FieldOf vars x T} : StateVal state T :=
+    mkStateVal (fun st => Rget st x pf.(_field_proof)).
 
   (** This begins the core definitions for hybrid programs.
    **)
   Definition state_set (x : var) {T : Type} (e : T) (st : state)
-             {pf : fields_get x vars = Some T} : state :=
-    record_set (get_member _ _ pf) e st.
+             {pf : FieldOf vars x T} : state :=
+    record_set (get_member _ _ pf.(_field_proof)) e st.
 
   (** Assignment *)
   Definition assign (x : var) {T : Type} (e : StateVal state T)
-             {pf : fields_get x vars = Some T} : ActionProp state :=
+             {pf : FieldOf vars x T} : ActionProp state :=
     mkActionVal (fun st st' => st' = state_set (pf:=pf) x (e st) st).
 
   (* The following tactic will attempt to prove that a var has a particular
      type in vars. This is necessary for having nice notation. *)
+(*
   Ltac fields_get_tac :=
-    try solve [ exact eq_refl | eassumption ].
-  Notation "x ::= e" := (@assign x _ e ltac:(fields_get_tac)) (at level 80, e at level 70).
+    lazymatch goal with
+    | |- ?G => idtac "resolution on " G ;
+             try solve [ exact eq_refl | eassumption ]
+    end.
+*)
+  Notation "x ::= e" := (@assign x _ e _) (at level 80, e at level 70).
 
   (** Non-deterministic assignment *)
   Definition nondet_assign (x : var) {T : Type}
-             {pf : fields_get x vars = Some T} : ActionProp state :=
+             {pf : FieldOf vars x T} : ActionProp state :=
     mkActionVal (fun st st' => exists (v : T), st' = state_set (pf:=pf) x v st).
 
-  Notation "x ::= ***" := (@nondet_assign x _ ltac:(fields_get_tac)) (at level 80).
+  Notation "x ::= ***" := (@nondet_assign x _ _) (at level 80).
 
   (** Test *)
   Definition test (t : StateProp state) : ActionProp state :=
@@ -127,7 +139,7 @@ Section dL.
 
   End Continuous.
   Notation "d & I" := (evolve d I) (at level 80, I at level 79).
-  Notation "'d[' x ']'" := (mkFlowVal (fun _ st' => @get x _ ltac:(fields_get_tac))) (at level 30).
+  Notation "'d[' x ']'" := (mkFlowVal (fun _ st' => @get x _ _)) (at level 30).
   Notation "'#[' e ']'" := (mkFlowVal (fun st _ => e st)) (at level 30).
 
   (** Choice *)
@@ -202,17 +214,17 @@ Section dL.
    ** allows us to avoid defining our own substitution and free-variable
    ** relations, and it allows us to re-use a substantial bit of Coq's theory.
    **)
-  Definition Subst T U (x : var) (e : StateVal state U)
-             (X : StateVal state T) (pf : fields_get x vars = Some U) : StateVal state T :=
+  Definition Subst (T U : Type) (x : var) (e : StateVal state U)
+             (X : StateVal state T) (pf : FieldOf vars x U) : StateVal state T :=
     mkStateVal (fun st => X (state_set (pf:=pf) x (e st) st)).
   Arguments Subst [_ _] _ _ _ _. (* The [T] argument in [Subst] is implicit. *)
-  Notation "p {{ x <- e }}" := (Subst x e p ltac:(fields_get_tac))
+  Notation "p {{ x <- e }}" := (@Subst _ _ x e p _)
                                  (at level 30).
 
   (** Discrete proof rules *)
   Theorem assign_rule :
     forall (T : Type) (x : var) (e : StateVal state T) (p : StateProp state)
-           (pf : fields_get x vars = Some T),
+           (pf : FieldOf vars x T),
       [[x ::= e]] p -|- p {{x <- e}}.
   Proof.
     destruct e. destruct p.
@@ -220,18 +232,10 @@ Section dL.
     subst; auto.
   Qed.
 
-  Theorem nondet_assign_rule :
-    forall (T : Type) (x : var) (P : StateProp state)
-           (pf : fields_get x vars = Some T),
-      @lequiv _ (ILogicOps_StateProp _)
-              ([[x ::= ***]]P)
-              (@lforall _ (ILogicOps_StateProp _) _
-(*                        (fun v : T => (P {{x <- pure v}}))).*)
-                        (fun v : T => (Subst x (pure v) P ltac:(fields_get_tac)))).
-(* We want to be able to write:
-forall (T : Type) (x : var) (P : StateProp state)
-           (pf : fields_get x vars = Some T),
-      [[x ::= ***]]P -|- (Forall v : T, P {{x <- pure v}}. *)
+  Theorem nondet_assign_rule
+  : forall (T : Type) (x : var) (P : StateProp state)
+      (pf : FieldOf vars x T),
+      [[x ::= ***]]P -|- Forall v : T, P {{x <- pure v}}.
   Proof.
     destruct P. cbv beta iota delta - [string_dec].
     split; intros.
@@ -318,7 +322,7 @@ forall (T : Type) (x : var) (P : StateProp state)
     Variable cstate : Type.
     Context { DInst : Derivable cstate }.
     Context { PInst : @ProjState cstate }.
-    
+
     Theorem differential_weakening :
       forall (dF : FlowProp cstate) (P : StateProp cstate),
         |-- [[dF & P]] proj_StateProp P.
@@ -503,9 +507,9 @@ Ltac diff_ind :=
 (** Substitution rules *)
 
 Lemma Subst_ap :
-  forall T U (a : StateVal (T -> U)) (b : StateVal T)
-         (x : var) (e : StateVal R),
-    (a <$> b)[x <- e] = (a[x <- e]) <$> (b[x <- e]).
+  forall s T U (a : StateVal s (T -> U)) (b : StateVal s T)
+         (x : var) (e : StateVal s R),
+    (a <*> b){{x <- e}} = (a{{x <- e}}) <*> (b{{x <- e}}).
 Proof. reflexivity. Qed.
 
 Lemma Subst_pure :

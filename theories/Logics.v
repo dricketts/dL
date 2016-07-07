@@ -142,7 +142,7 @@ Section Logics.
 End Logics.
 
 (** Notation for applicative functors *)
-Notation "x <$> y" := (ap x y) (at level 30).
+Notation "x <*> y" := (ap x y) (at level 30).
 
 Export ChargeCore.Logics.ILogic.
 Export ExtLib.Structures.Applicative.
