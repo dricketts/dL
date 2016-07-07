@@ -459,15 +459,47 @@ Section dL.
 
   End ContinuousRules.
 
+  (** This definition essentially just says that [H] defines things pointwise *)
+  Definition D_pt (cvars : fields) (x : var)
+             (H : Derivable (record cvars))
+  : Prop :=
+    forall (f f' : R -> record cvars) (t : R),
+      is_derive f t (f' t) ->
+      forall (pf : FieldOf cvars x R),
+        is_derive (fun t => Rget (f t) _ pf.(_field_proof)) t
+                  (Rget (f' t) _ pf.(_field_proof)).
+
+  (** This is a cop-out, but it is necessary because we are quantifying over
+   ** the [Derivable] instance.
+   **)
   Theorem D_state_val_var :
     forall (x : var) (cvars : fields)
-           (pf : fields_get x cvars = @Some Type R)
-           (H : Derivable (record cvars)),
-      D_state_val (mkStateVal (fun st => Rget st x pf))
-                  (mkFlowVal (fun st st' => Rget st' x pf)).
+      (pf : FieldOf cvars x R)
+      (H : Derivable (record cvars))
+      (Dpt : D_pt x H),
+      D_state_val (mkStateVal (fun st => Rget st x pf.(_field_proof)))
+                  (mkFlowVal (fun st st' => Rget st' x pf.(_field_proof))).
   Proof.
     unfold D_state_val, Rget. simpl. intros.
-  (* ?????? *)
+    eapply Dpt. assumption.
+  Defined.
+
+  Fixpoint all_R (f : fields) : fields :=
+    match f with
+    | pm_Leaf => pm_Leaf
+    | pm_Branch a b c => pm_Branch (all_R a)
+                                  match b with
+                                  | None => None
+                                  | Some _ => @Some Type R
+                                  end
+                                  (all_R c)
+    end.
+
+  Definition Derivable_record (cvars : fields)
+  : Derivable (record (all_R cvars)).
+    induction cvars.
+    { (* Is there a NormedModule for type unit? *) admit. }
+    { (* Is there a NormedModule for product types? *) admit. }
   Admitted.
 
 
