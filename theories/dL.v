@@ -69,15 +69,6 @@ Section dL.
              {pf : FieldOf vars x T} : ActionProp state :=
     mkActionVal (fun st st' => st' = state_set (pf:=pf) x (e st) st).
 
-  (* The following tactic will attempt to prove that a var has a particular
-     type in vars. This is necessary for having nice notation. *)
-(*
-  Ltac fields_get_tac :=
-    lazymatch goal with
-    | |- ?G => idtac "resolution on " G ;
-             try solve [ exact eq_refl | eassumption ]
-    end.
-*)
   Notation "x ::= e" := (@assign x _ e _) (at level 80, e at level 70).
 
   (** Non-deterministic assignment *)
@@ -95,13 +86,7 @@ Section dL.
 
   Section Continuous.
 
-    Class Derivable (T : Type) :=
-      { T_class_of : NormedModule.class_of R_AbsRing T }.
-
-    Variable cstate : Type.
-    Context { DInst : Derivable cstate }.
-    Local Definition cstate_NormedModule := NormedModule.Pack _ _ T_class_of cstate.
-    Canonical cstate_NormedModule.
+    Variable cstate : NormedModule R_AbsRing.
 
     (** Continuous transitions. *)
     (** This gives the semantic definition of a continuous evolution
@@ -319,8 +304,7 @@ Section dL.
 
   Section ContinuousRules.
 
-    Variable cstate : Type.
-    Context { DInst : Derivable cstate }.
+    Variable cstate : NormedModule R_AbsRing.
     Context { PInst : @ProjState cstate }.
 
     Theorem differential_weakening :
@@ -336,8 +320,8 @@ Section dL.
     Qed.
 
     Theorem differential_weakening' :
-      forall (dF : FlowProp cstate) (P Q : StateProp cstate),
-        [[dF & Q]](proj_StateProp Q -->> proj_StateProp P) -|- [[dF & Q]]proj_StateProp P.
+      forall (dF : FlowProp cstate) (Q : StateProp cstate) (P : StateProp state),
+        [[dF & Q]](proj_StateProp Q -->> P) -|- [[dF & Q]]P.
     Proof.
       split.
       { rewrite K_rule. pose proof (differential_weakening). specialize (H dF Q).
@@ -459,50 +443,6 @@ Section dL.
 
   End ContinuousRules.
 
-  (** This definition essentially just says that [H] defines things pointwise *)
-  Definition D_pt (cvars : fields) (x : var)
-             (H : Derivable (record cvars))
-  : Prop :=
-    forall (f f' : R -> record cvars) (t : R),
-      is_derive f t (f' t) ->
-      forall (pf : FieldOf cvars x R),
-        is_derive (fun t => Rget (f t) _ pf.(_field_proof)) t
-                  (Rget (f' t) _ pf.(_field_proof)).
-
-  (** This is a cop-out, but it is necessary because we are quantifying over
-   ** the [Derivable] instance.
-   **)
-  Theorem D_state_val_var :
-    forall (x : var) (cvars : fields)
-      (pf : FieldOf cvars x R)
-      (H : Derivable (record cvars))
-      (Dpt : D_pt x H),
-      D_state_val (mkStateVal (fun st => Rget st x pf.(_field_proof)))
-                  (mkFlowVal (fun st st' => Rget st' x pf.(_field_proof))).
-  Proof.
-    unfold D_state_val, Rget. simpl. intros.
-    eapply Dpt. assumption.
-  Defined.
-
-  Fixpoint all_R (f : fields) : fields :=
-    match f with
-    | pm_Leaf => pm_Leaf
-    | pm_Branch a b c => pm_Branch (all_R a)
-                                  match b with
-                                  | None => None
-                                  | Some _ => @Some Type R
-                                  end
-                                  (all_R c)
-    end.
-
-  Definition Derivable_record (cvars : fields)
-  : Derivable (record (all_R cvars)).
-    induction cvars.
-    { (* Is there a NormedModule for type unit? *) admit. }
-    { (* Is there a NormedModule for product types? *) admit. }
-  Admitted.
-
-
 (** Some automation using Ltac (Coq's tactic language). *)
 
 (* This tactic breaks the logic abstractions. This should be used
@@ -516,8 +456,8 @@ Ltac breakAbstraction :=
  ** automatically construct derivatives using these rules.
  **)
 Ltac prove_derive :=
-  repeat first [ simple eapply D_state_val_var
-               | simple eapply D_state_val_plus
+  repeat first [ (*simple eapply D_state_val_var
+               |*) simple eapply D_state_val_plus
                | simple eapply D_state_val_minus
                | simple eapply D_state_val_mult
                | simple eapply D_state_val_pure
