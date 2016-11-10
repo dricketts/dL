@@ -19,17 +19,23 @@ Local Open Scope string_scope.
 
 (** This file formalizes dL using the logics defined in Logics.v *)
 
+Definition liftA2 (T: Type -> Type) `{app: Applicative T} (A B C: Type)
+  (f: A -> B -> C) (a: T A) (b: T B): T C :=
+  pure f <$> a <$> b.
+Arguments liftA2 [_ _ _ _ _] _ _ _.
+
 (** First, we define some notation to lift standard operators into
  ** the various logics. These define some operators for building
  ** terms in dL, but anything of type [StateVal T] is a term of
  ** type T.
  **)
-Notation "a [+] b" := (pure Rplus <$> a <$> b) (at level 50, left associativity).
-Notation "a [-] b" := (pure Rminus <$> a <$> b) (at level 50, left associativity).
-Notation "a [*] b" := (pure Rmult <$> a <$> b) (at level 40, left associativity).
-Notation "a [>=] b" := (pure Rge <$> a <$> b) (at level 70, right associativity).
-Notation "a [<=] b" := (pure Rle <$> a <$> b) (at level 70, right associativity).
-Notation "a [=] b" := (pure (@eq R) <$> a <$> b) (at level 70, right associativity).
+Notation "a [+] b" := (liftA2 Rplus a b) (at level 50, left associativity).
+Notation "a [+] b" := (liftA2 Rplus a b) (at level 50, left associativity).
+Notation "a [-] b" := (liftA2 Rminus a b) (at level 50, left associativity).
+Notation "a [*] b" := (liftA2 Rmult a b) (at level 40, left associativity).
+Notation "a [>=] b" := (liftA2 Rge a b) (at level 70, right associativity).
+Notation "a [<=] b" := (liftA2 Rle a b) (at level 70, right associativity).
+Notation "a [=] b" := (liftA2 (@eq R) a b) (at level 70, right associativity).
 
 (** We use the following to lift variables into
  ** [StateVal]s, which allows us to extract values
@@ -71,13 +77,13 @@ Definition evolve (dF : FlowProp) (I : StateProp) : ActionProp :=
   mkActionVal
     (fun st st' =>
        exists (r : R) (F : R -> state)
-              (* derivable states that derivatives exists for all variables
-                 at all times from 0 to r. *)
-              (derivable : forall (x : var) (t : R), derivable_pt (fun t => F t x) t),
+         (* derivable states that derivatives exists for all variables
+            at all times from 0 to r. *)
+         (derivable : forall (x : var) (t : R), derivable_pt (fun t => F t x) t),
          0 <= r /\ F 0 = st /\ F r = st' /\
          forall t, 0 <= t <= r ->
-                   dF (F t) (fun x => derive_pt (fun t => F t x) t (derivable x t)) /\
-                   I (F t)).
+              dF (F t) (fun x => derive_pt (fun t => F t x) t (derivable x t)) /\
+              I (F t)).
 
 Notation "d & I" := (evolve d I) (at level 80, I at level 79).
 Notation "'d[' x ']'" := (mkFlowVal (fun _ st' => st' x)) (at level 30).
@@ -114,7 +120,7 @@ Notation "a ^*" := (star a) (at level 80).
 Definition box (a : ActionProp) (s : StateProp) : StateProp :=
   mkStateVal (fun st => forall st', a st st' -> s st').
 
-Notation "'[['  a ']]' p" := (box a p) (at level 70, p at next level, a at level 0).
+Notation "'[[' a ']]' p" := (box a p) (at level 70, p at next level, a at level 0).
 
 (** Diamond *)
 Definition diamond (a : ActionProp) (s : StateProp) : StateProp :=
@@ -312,9 +318,9 @@ Theorem differential_induction_leq :
     dF //\\ #[I] |-- e1' [<=] e2' ->
     I -->> (e1 [<=] e2) |-- [[dF & I]](e1 [<=] e2).
 Proof.
-  destruct dF as [dF]. destruct I as [I]. destruct e1 as [e1].
-  destruct e2 as [e2]. destruct e1' as [e1']. destruct e2' as [e2'].
-  unfold D_state_val. simpl. intros.
+  intros [dF][I][e1][e2][e1'][e2'].
+  unfold D_state_val. simpl.
+  intros.
   destruct H3 as [r [f [pf [Hr [Hf0 [Hfr HdF] ] ] ] ] ].
   specialize (H f (fun x => pf x)). specialize (H0 f (fun x => pf x)).
   destruct H. destruct H0. apply Rminus_le.
