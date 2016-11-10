@@ -162,6 +162,11 @@ Definition Subst T (x : var) (e : StateVal R) (X : StateVal T) : StateVal T :=
   mkStateVal (fun st => X (state_set x (e st) st)).
 Arguments Subst [_] _ _ _. (* The [T] argument in [Subst] is implicit. *)
 Notation "p [ x <- e ]" := (Subst x e p) (at level 30).
+Definition Subst_Action T (x : var) (e : StateVal R)
+          (X : ActionVal T) : ActionVal T :=
+  mkActionVal (fun st st' => X (state_set x (e st) st) st').
+Arguments Subst_Action [_] _ _ _. (* The [T] argument in [Subst_Action] is implicit. *)
+Notation "p [ x <-- e ]" := (Subst_Action x e p) (at level 30).
 
 (** Discrete proof rules *)
 
@@ -489,6 +494,27 @@ Lemma Subst_lfalse :
 Proof.
   unfold Subst, state_set. split; simpl; intros; auto.
 Qed.
+
+Lemma Subst_box :
+  forall (x : var) (e : StateVal R)
+         (a : ActionProp) (p : StateProp),
+    ([[a]]p)[x <- e] -|- [[ a[x <-- e] ]] p.
+Proof.
+  unfold Subst, state_set. split; simpl; intros; auto.
+Qed.
+
+Lemma Subst_Action_assign :
+  forall (x y : var) (e1 e2 : StateVal R),
+     y ::= e2[x <- e1] |-- (y ::= e2)[x <-- e1].
+Proof.
+  unfold Subst_Action. simpl; intros; subst.
+  { eexists; split; [ eauto | ]. reflexivity. }
+  { destruct H. destruct H; subst. reflexivity. }
+Qed.
+
+Lemma Subst_Action_nondet_assign :
+  forall (x y : var) (e : StateVal R),
+    (y ::= ***)[x <-- e] -|- (x ::= e1 ;; y ::= ***).
 
 (**
  ** We use generalized rewriting to apply proof rules of the form
