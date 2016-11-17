@@ -21,6 +21,48 @@ Local Open Scope string_scope.
 
 Set Implicit Arguments.
 
+(* These two lemmas could go elsewhere. *)
+
+Lemma record_get_record_set_same:
+  forall (T: Type) (vars: fields) (pm: member T vars) r val,
+    record_get pm (record_set pm val r) = val.
+Proof.
+  induction pm; intros.
+  { simpl. reflexivity. }
+  { simpl. apply IHpm. }
+  { simpl. apply IHpm. }
+Qed.
+
+(* TODO:
+Lemma record_get_record_set_different:
+  forall (T: Type) (vars: fields) (pmr pmw: member T vars)
+    (d: pmr <> pmw) r val,
+    record_get pmr (record_set pmw val r) = record_get pmr r.
+Proof.
+*)
+
+(*
+Lemma record_get_record_set_same:
+  forall T x vars (pf: fields_get x vars = Some T) r v,
+    record_get (get_member x vars pf)
+               (record_set (get_member x vars pf) v r) =
+    v.
+Proof.
+  intros.
+  apply record_get_record_set.
+Qed.
+
+Lemma record_get_record_set_different:
+  forall T x vars (pf: fields_get x vars = Some T) r v,
+    record_get (get_member x vars pf)
+               (record_set (get_member x vars pf) v r) =
+    v.
+Proof.
+  intros.
+  apply record_get_record_set.
+Qed.
+ *)
+
 (** This file formalizes dL using the logics defined in Logics.v *)
 
 (** First, we define some notation to lift standard operators into
@@ -479,34 +521,47 @@ Ltac diff_ind :=
 (** Substitution rules *)
 
 Lemma Subst_ap :
-  forall s T U (a : StateVal s (T -> U)) (b : StateVal s T)
-         (x : var) (e : StateVal s R),
+  forall T U (a : StateVal state (T -> U)) (b : StateVal state T)
+         (x : var) (e : StateVal state R) {FO : FieldOf vars x R},
     (a <*> b){{x <- e}} = (a{{x <- e}}) <*> (b{{x <- e}}).
 Proof. reflexivity. Qed.
 
 Lemma Subst_pure :
-  forall T (a : T) (x : var) (e : StateVal R),
-    (pure a)[x <- e] = pure a.
+  forall T (a : T) (x : var) (e : StateVal state R) {FO : FieldOf vars x R},
+    (pure a){{x <- e}} = pure a.
 Proof. reflexivity. Qed.
 
 Lemma Subst_get :
-  forall (x : var) (e : StateVal R),
-    (get x)[x <- e] = e.
+  forall (x : var) (e : StateVal state R) {FO : FieldOf vars x R},
+    (get x){{x <- e}} = e.
 Proof.
   destruct e as [e].
-  unfold Subst, state_set, get. simpl. intros.
-  f_equal. apply functional_extensionality. intros.
-  destruct (string_dec x x); tauto.
+  unfold Subst, state_set, get.
+  simpl.
+  intros.
+  f_equal.
+  apply functional_extensionality.
+  intros.
+  destruct FO as [pf].
+  simpl.
+  apply record_get_record_set_same.
 Qed.
 
 Lemma Subst_not_get :
-  forall (x y : var) (e : StateVal R),
+  forall (x y : var) (e : StateVal state R)
+    {X : FieldOf vars x R}
+    {Y : FieldOf vars y R}
+  ,
     x <> y ->
-    (get x)[y <- e] = (get x).
+    (get x){{y <- e}} = (get x).
 Proof.
-  destruct e.
-  unfold Subst, state_set, get. simpl. intros.
-  f_equal. apply functional_extensionality. intros.
+  destruct e as [e].
+  unfold Subst, state_set, get.
+  simpl.
+  intros.
+  f_equal.
+  apply functional_extensionality.
+  intros.
   destruct (string_dec x y); congruence.
 Qed.
 
