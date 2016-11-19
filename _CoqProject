@@ -3,5 +3,6 @@
 
 ./theories/Logics.v
 ./theories/dL.v
+./theories/RecordsFacts.v
 
 ./examples/Velocity.v

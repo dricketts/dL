@@ -14,54 +14,13 @@ Require Import ChargeCore.Logics.ILogic.
 Require Import ChargeCore.Tactics.Tactics.
 Require Import Records.Records.
 Require Import dL.Logics.
+Require Import dL.RecordsFacts.
 Local Transparent ILInsts.ILFun_Ops.
 
 Local Open Scope R.
 Local Open Scope string_scope.
 
 Set Implicit Arguments.
-
-(* These two lemmas could go elsewhere. *)
-
-Lemma record_get_record_set_same:
-  forall (T: Type) (vars: fields) (pm: member T vars) r val,
-    record_get pm (record_set pm val r) = val.
-Proof.
-  induction pm; intros.
-  { simpl. reflexivity. }
-  { simpl. apply IHpm. }
-  { simpl. apply IHpm. }
-Qed.
-
-(* TODO:
-Lemma record_get_record_set_different:
-  forall (T: Type) (vars: fields) (pmr pmw: member T vars)
-    (d: pmr <> pmw) r val,
-    record_get pmr (record_set pmw val r) = record_get pmr r.
-Proof.
-*)
-
-(*
-Lemma record_get_record_set_same:
-  forall T x vars (pf: fields_get x vars = Some T) r v,
-    record_get (get_member x vars pf)
-               (record_set (get_member x vars pf) v r) =
-    v.
-Proof.
-  intros.
-  apply record_get_record_set.
-Qed.
-
-Lemma record_get_record_set_different:
-  forall T x vars (pf: fields_get x vars = Some T) r v,
-    record_get (get_member x vars pf)
-               (record_set (get_member x vars pf) v r) =
-    v.
-Proof.
-  intros.
-  apply record_get_record_set.
-Qed.
- *)
 
 (** This file formalizes dL using the logics defined in Logics.v *)
 
@@ -562,7 +521,7 @@ Proof.
   f_equal.
   apply functional_extensionality.
   intros.
-  destruct (string_dec x y); congruence.
+  apply record_get_record_set_different.
 Qed.
 
 Lemma Subst_limpl :
