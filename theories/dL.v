@@ -578,23 +578,27 @@ Qed.
 Global Instance Proper_box_lequiv :
   Proper (lequiv ==> lequiv ==> lequiv) box.
 Proof.
-  red. red. red. red. unfold lequiv. simpl. firstorder.
+  repeat red. unfold lequiv. simpl. firstorder.
 Qed.
+
 Global Instance Proper_box_lentails :
   Proper (lentails --> lentails ==> lentails) box.
 Proof.
-  red. red. red. red. red. red. red. red. red. red. red. red.
-  red. simpl. intros. apply H0. firstorder.
+  repeat red. simpl. intros. apply H0. firstorder.
 Qed.
-Global Instance Proper_Subst_lequiv :
-  Proper (eq ==> eq ==> lequiv ==> lequiv ==> eq) (Subst (T:=Prop)).
+
+Global Instance Proper_Subst_lequiv (X : Type) (x : var) :
+  Proper (eq ==> lequiv ==> eq ==> lequiv) (Subst (T:=Prop) (U:=X) x).
 Proof.
   repeat red. simpl. intros.
-  split; intros; apply H1; intuition congruence.
+  split; intros; apply H0; intuition congruence.
 Qed.
-Global Instance Proper_Subst_lentails :
-  Proper (eq ==> eq ==> lentails ==> lentails) (Subst (T:=Prop)).
+
+Global Instance Proper_Subst_lentails (X : Type) (x : var) :
+  Proper (eq ==> lentails ==> eq ==> lentails) (Subst (T:=Prop) (U:=X) x).
 Proof.
   repeat red. simpl. intros.
-  apply H1; intuition congruence.
+  apply H0. congruence.
 Qed.
+
+End dL.
