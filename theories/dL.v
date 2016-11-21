@@ -530,31 +530,37 @@ Proof.
 Qed.
 
 Lemma Subst_limpl :
-  forall (x : var) (e : StateVal R) (p q : StateProp state),
-    (p -->> q)[x <- e] -|- p[x <- e] -->> q[x <- e].
+  forall (x : var) (e : StateVal state R) (p q : StateProp state)
+    {X : FieldOf vars x R},
+    (p -->> q){{x <- e}} -|- p{{x <- e}} -->> q{{x <- e}}.
 Proof.
-  unfold Subst, state_set. split; simpl; intros; auto.
+  unfold Subst, state_set.
+  split; simpl; intros; auto.
 Qed.
 
 Lemma Subst_land :
-  forall (x : var) (e : StateVal R) (p q : StateProp state),
-    (p //\\ q)[x <- e] -|- p[x <- e] //\\ q[x <- e].
+  forall (x : var) (e : StateVal state R) (p q : StateProp state)
+    {X : FieldOf vars x R},
+    (p //\\ q){{x <- e}} -|- p{{x <- e}} //\\ q{{x <- e}}.
 Proof.
-  unfold Subst, state_set. split; simpl; intros; auto.
+  unfold Subst, state_set.
+  split; simpl; intros; auto.
 Qed.
 
 Lemma Subst_ltrue :
-  forall (x : var) (e : StateVal R),
-    ltrue[x <- e] -|- ltrue.
+  forall (x : var) (e : StateVal state R) {X : FieldOf vars x R},
+    ltrue{{x <- e}} -|- ltrue.
 Proof.
-  unfold Subst, state_set. split; simpl; intros; auto.
+  unfold Subst, state_set.
+  split; simpl; intros; auto.
 Qed.
 
 Lemma Subst_lfalse :
-  forall (x : var) (e : StateVal R),
-    lfalse[x <- e] -|- lfalse.
+  forall (x : var) (e : StateVal state R) {X : FieldOf vars x R},
+    lfalse{{x <- e}} -|- lfalse.
 Proof.
-  unfold Subst, state_set. split; simpl; intros; auto.
+  unfold Subst, state_set.
+  split; simpl; intros; auto.
 Qed.
 
 (**
@@ -581,7 +587,7 @@ Proof.
   red. simpl. intros. apply H0. firstorder.
 Qed.
 Global Instance Proper_Subst_lequiv :
-  Proper (eq ==> eq ==> lequiv ==> lequiv) (Subst (T:=Prop)).
+  Proper (eq ==> eq ==> lequiv ==> lequiv ==> eq) (Subst (T:=Prop)).
 Proof.
   repeat red. simpl. intros.
   split; intros; apply H1; intuition congruence.
