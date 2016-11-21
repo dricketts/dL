@@ -1,4 +1,6 @@
 Require Import BinPos.
+Require Import Coq.Logic.FinFun.
+Require Import Program.
 Require Import Records.Records.
 
 Ltac apply_obvious :=
@@ -28,8 +30,6 @@ Fixpoint
   | pmm_R V L mR => xI (member_to_positive mR)
   end.
 
-Require Import Program.
-
 Ltac break_member :=
   (* This should use is_contructor in 8.6 *)
   match goal with
@@ -55,9 +55,15 @@ Proof.
   }
 Qed.
 
-(*
+Lemma fields_get_Leaf_None:
+  forall (x: field),
+    fields_get x pm_Leaf = None.
+Proof.
+  induction x; simpl; congruence.
+Qed.
+
 Lemma different_var_different_member:
-  forall (T: Type) (vars: fields) (x y : field) vx vy
+  forall (x y : field) (vars: fields) vx vy
     (X: fields_get x vars = Some vx)
     (Y: fields_get y vars = Some vy)
   ,
@@ -65,6 +71,116 @@ Lemma different_var_different_member:
     member_to_positive (get_member x vars X) <>
     member_to_positive (get_member y vars Y).
 Proof.
+  intros.
+  (* kinda want to do the destruct vars here, but want to keep the IH general *)
+  dependent induction x; intros;
+    (destruct vars as [|L ? R];
+     [ exfalso; rewrite fields_get_Leaf_None in X; discriminate | simpl in * ]).
+
+  {
+    destruct y; simpl in *.
+    { intro.
+      apply IHx with (X := X) (Y := Y).
+      { congruence. }
+      { congruence. }
+    }
+    { congruence. }
+    {
+      dependent destruction o.
+      {
+        dependent destruction Y.
+        simpl.
+        congruence.
+      }
+      { congruence. }
+    }
+  }
+
+  {
+    destruct y; simpl in *.
+    { congruence. }
+    { intro.
+      apply IHx with (X := X) (Y := Y).
+      { congruence. }
+      { congruence. }
+    }
+    {
+      dependent destruction o.
+      {
+        dependent destruction Y.
+        simpl.
+        congruence.
+      }
+      { congruence. }
+    }
+  }
+
+  {
+    dependent destruction o.
+    {
+      dependent destruction X.
+      simpl.
+      destruct y; simpl in *.
+      { congruence. }
+      { congruence. }
+      { congruence. }
+    }
+    { congruence. }
+  }
 
 Qed.
- *)
+
+Theorem ascii_to_p_injection:
+  forall a b s t, ascii_to_p a s = ascii_to_p b t -> a = b /\ s = t.
+Proof.
+  intros.
+  repeat (
+      match goal with
+      | [ a: Ascii.ascii |- _ ] => destruct a
+      | [ H: bool_to_p ?b1 _ = bool_to_p ?b2 _ |- _ ] =>
+        destruct b1; destruct b2; simpl in H; try congruence; inversion H; clear H
+      | _ => simpl in *
+      end
+    ); split; reflexivity.
+Qed.
+
+Theorem string_to_p_injective: Injective string_to_p.
+Proof.
+
+  intro x.
+  induction x; intros y XY; destruct y; simpl in *.
+
+  { reflexivity. }
+
+  {
+    destruct a.
+    destruct b.
+    {
+      simpl in XY.
+      congruence.
+    }
+    {
+      simpl in XY.
+      congruence.
+    }
+  }
+
+  {
+    destruct a.
+    destruct b.
+    {
+      simpl in XY.
+      congruence.
+    }
+    {
+      simpl in XY.
+      congruence.
+    }
+  }
+
+  {
+    apply ascii_to_p_injection in XY.
+    f_equal; firstorder.
+  }
+
+Qed.

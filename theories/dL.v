@@ -522,6 +522,11 @@ Proof.
   apply functional_extensionality.
   intros.
   apply record_get_record_set_different.
+  apply different_var_different_member.
+  intro.
+  apply H.
+  apply string_to_p_injective.
+  assumption.
 Qed.
 
 Lemma Subst_limpl :
