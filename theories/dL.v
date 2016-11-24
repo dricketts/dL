@@ -37,17 +37,9 @@ Notation "a [<=] b" := (pure Rle <*> a <*> b) (at level 70, right associativity)
 Notation "a [=] b" := (pure (@eq R) <*> a <*> b) (at level 70, right associativity).
 
 Section dL.
-
   Definition var : Type := string.
   Variable vars : fields.
   Definition state : Type := record vars.
-
-  (** TODO: This should be moved to the extensible records repository *)
-  Class FieldOf vars x T : Prop := mkFieldOf
-  { _field_proof : fields_get x vars = Some T }.
-  Arguments _field_proof [_ _ _] _.
-
-  Hint Extern 0 (FieldOf _ _ _) => constructor; reflexivity : typeclass_instances.
 
   (** We use the following to lift variables into
    ** [StateVal]s, which allows us to extract values
@@ -125,7 +117,7 @@ Section dL.
 
   End Continuous.
   Notation "d & I" := (evolve d I) (at level 80, I at level 79).
-  Notation "'d[' x ']'" := (mkFlowVal (fun _ st' => @get x _ _)) (at level 30).
+  Notation "'d[' x ']'" := (mkFlowVal (fun _ st' => get x st')) (at level 30).
   Notation "'#[' e ']'" := (mkFlowVal (fun st _ => e st)) (at level 30).
 
   (** Choice *)
@@ -159,15 +151,13 @@ Section dL.
   Definition box (a : ActionProp state) (s : StateProp state) : StateProp state :=
     mkStateVal (fun st => forall st', a st st' -> s st').
 
-  Notation "'[['  a ']]' p" := (box a p) (at level 70, p at next level, a at level 0).
+  Notation "'[[' a ']]' p" := (box a p) (at level 70, p at next level, a at level 0).
 
   (** Diamond *)
   Definition diamond (a : ActionProp state) (s : StateProp state) : StateProp state :=
     mkStateVal (fun st => exists st', a st st' /\ s st').
 
-  Notation "'<<'  a '>>' p" := (diamond a p) (at level 70, p at next level, a at level 0).
-
-  (** Negation *)
+  Notation "'<<' a '>>' p" := (diamond a p) (at level 70, p at next level, a at level 0).
   Notation "! p" := (p -->> lfalse) (at level 30, p at level 30).
   (** NOTE: In constructive logic (like Coq) negation is defined to be
    ** "implies false".
@@ -602,3 +592,24 @@ Proof.
 Qed.
 
 End dL.
+
+(* Redefining notations since they did not survive the section. *)
+
+Notation "x ::= e" := (@assign _ x _ e _) (at level 80, e at level 70).
+Notation "x ::= ***" := (@nondet_assign _ x _ _) (at level 80).
+Notation "? e" := (test e) (at level 80, e at level 70).
+
+Notation "d & I" := (evolve d I) (at level 80, I at level 79).
+Notation "'d[' x ']'" := (mkFlowVal (fun _ st' => get x st')) (at level 30).
+Notation "'#[' e ']'" := (mkFlowVal (fun st _ => e st)) (at level 30).
+
+Notation "a '+++' b" := (choice a b) (at level 80).
+Notation "a ;; b" := (seq a b) (at level 90, right associativity).
+Notation "a ^*" := (star a) (at level 80).
+
+Notation "'[[' a ']]' p" := (box a p) (at level 70, p at next level, a at level 0).
+Notation "'<<' a '>>' p" := (diamond a p) (at level 70, p at next level, a at level 0).
+Notation "! p" := (p -->> lfalse) (at level 30, p at level 30).
+(** NOTE: In constructive logic (like Coq) negation is defined to be
+ ** "implies false".
+ **)

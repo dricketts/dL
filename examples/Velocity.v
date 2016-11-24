@@ -1,8 +1,10 @@
 Require Import Coq.Reals.Rdefinitions.
 Require Import Coq.micromega.Psatz.
 Require Import ChargeCore.Tactics.Tactics.
+Require Import Records.Records.
 Require Import dL.Logics.
 Require Import dL.dL.
+Require Import dL.RecordsFacts.
 Local Transparent ILInsts.ILFun_Ops.
 
 Local Open Scope R.
@@ -21,6 +23,19 @@ Section VelocityBound.
      the discrete controller. This is also a symbolic constant. *)
   Variable d : R.
 
+  Notation "{@@ x , .. , y @@}" :=
+    (Fields (FScons x%field_decl ..
+                    (FScons y%field_decl FSnil) .. ))
+    : type_scope.
+
+  Definition state :=
+    dL.state
+      {@@ ("a" %e R)
+       ,  ("v" %e R)
+       ,  ("t" %e R)
+       ,  ("y" %e R)
+       @@}.
+
   (* The safety property, i.e. the velocity is at most the
      upper bound. You have to write [get "v"] to access
      the current value of the velocity variable v. You also
@@ -28,13 +43,13 @@ Section VelocityBound.
      some of the many examples of how the syntax is very
      verbose in our embedding, but we hope to improve this
      in the future. *)
-  Definition safe : StateProp :=
+  Definition safe : StateProp state :=
     get "v" [<=] pure V.
 
   (* The discrete controller sets the acceleration to some
      value that will be safe until the next execution. It
      also sets the timer to zero. *)
-  Definition ctrl : ActionProp :=
+  Definition ctrl : ActionProp state :=
     "a" ::= ***;;
      ? get "v" [+] get "a"[*]pure d [<=] pure V;;
     "t" ::= pure 0.
@@ -46,7 +61,13 @@ Section VelocityBound.
      equal to the variable a. This syntax is pretty brutal
      and we would definitely like to improve it. The evolution
      invariant follows the [&] symbol. *)
-  Definition plant : ActionProp :=
+
+  (* Debug attempt:
+     Definition plant : ActionProp state :=
+       (@mkFlowVal state R (fun _ st' => get "v" st')) [=] pure 0.
+   *)
+
+  Definition plant : ActionProp state :=
     d["v"] [=] #[get "a"] //\\
     d["a"] [=] pure 0 //\\
     d["t"] [=] pure 1 & get "t" [<=] pure d.
