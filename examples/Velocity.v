@@ -62,15 +62,20 @@ Section VelocityBound.
      and we would definitely like to improve it. The evolution
      invariant follows the [&] symbol. *)
 
-  (* Debug attempt:
-     Definition plant : ActionProp state :=
-       (@mkFlowVal state R (fun _ st' => get "v" st')) [=] pure 0.
-   *)
-
-  Definition plant : ActionProp state :=
+  Definition plant : FlowProp state :=
     d["v"] [=] #[get "a"] //\\
-    d["a"] [=] pure 0 //\\
-    d["t"] [=] pure 1 & get "t" [<=] pure d.
+     d["a"] [=] pure 0.
+
+  (* The next two should actually be about some NormedModule of state *)
+
+  Definition evolveL : FlowProp state :=
+    d["t"] [=] pure 1.
+
+  Definition evolveR : StateProp state :=
+    get "t" [<=] pure d.
+
+  Definition plant2 : ActionProp state :=
+    evolveL & evolveR.
 
   (* Theorem expressing that the system does enforce
      the upper bound on velocity. The proof is fairly simple
