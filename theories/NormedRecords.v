@@ -40,7 +40,8 @@ Definition Leaf_NormedModuleAux_class_of (K : AbsRing)
 Canonical Leaf_NormedModuleAux (K : AbsRing) :=
   NormedModuleAux.Pack K (record pm_Leaf) (Leaf_NormedModuleAux_class_of _) (record pm_Leaf).
 
-Definition Leaf_NormedModule_mixin (K : AbsRing) : NormedModule.mixin_of K (Leaf_NormedModuleAux _).
+Definition Leaf_NormedModule_mixin (K : AbsRing)
+  : NormedModule.mixin_of K (Leaf_NormedModuleAux _).
   refine (NormedModule.Mixin _ _ (fun _ => R0) R1 _ _ _ _ _).
   { intros. psatzl R. }
   { intros. psatz R. }
@@ -48,7 +49,8 @@ Definition Leaf_NormedModule_mixin (K : AbsRing) : NormedModule.mixin_of K (Leaf
   { intros. destruct eps. simpl. psatz R. }
   { intros. symmetry. apply Leaf_unit. }
 Defined.
-Definition Leaf_NormedModule_class_of (K : AbsRing) : NormedModule.class_of K (record pm_Leaf) :=
+Definition Leaf_NormedModule_class_of (K : AbsRing)
+  : NormedModule.class_of K (record pm_Leaf) :=
   NormedModule.Class _ _ (Leaf_NormedModuleAux_class_of _) (Leaf_NormedModule_mixin _).
 Canonical Leaf_NormedModule_class_of.
 Canonical Leaf_NormedModule (K : AbsRing) :=
@@ -65,3 +67,6 @@ Section Branch_NormedModule.
   Definition Branch_None_NormedModule_class_of (T : NormedModule K)
     : Type.
     refine (NormedModule.class_of K (record (pm_Branch L (@Some Type T) R))).
+  Defined.
+
+End Branch_NormedModule.
