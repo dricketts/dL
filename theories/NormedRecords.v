@@ -106,7 +106,7 @@ Section Branch_Some.
 
     Context `{PlusOp (record l)} `{PlusOp T} `{PlusOp (record r)}.
 
-    Global Instance PlusOp_branch_Some :
+    Global Instance PlusOp_Branch_Some :
       PlusOp (record (pm_Branch l (Some T) r)).
     Proof.
       intros a b.
@@ -484,19 +484,15 @@ Definition Leaf_AbelianGroup_mixin : AbelianGroup.mixin_of (record pm_Leaf).
 Defined.
 Canonical Leaf_AbelianGroup := AbelianGroup.Pack _ Leaf_AbelianGroup_mixin (record pm_Leaf).
 
-
-TODO
-
-
 Definition Leaf_Ring_mixin : Ring.mixin_of Leaf_AbelianGroup.
-  apply Ring.Mixin
-  with
-  (mult := fun _ _ => pr_Leaf)
+  apply Ring.Mixin with
+    (mult := fun _ _ => pr_Leaf)
     (one := pr_Leaf).
-  refine (Ring.Mixin _ (fun _ _ => pr_Leaf) pr_Leaf _ _ _ _ _).
-
-
-  ; try reflexivity; apply Leaf_unit.
+  { reflexivity. }
+  { apply Leaf_unit. }
+  { apply Leaf_unit. }
+  { reflexivity. }
+  { reflexivity. }
 Defined.
 Canonical Leaf_Ring :=
   Ring.Pack (record pm_Leaf) (Ring.Class _ _ Leaf_Ring_mixin) (record pm_Leaf).
@@ -508,7 +504,12 @@ Canonical Leaf_UniformSpace :=
   UniformSpace.Pack (record pm_Leaf) Leaf_UniformSpace_mixin (record pm_Leaf).
 
 Definition Leaf_ModuleSpace_mixin (K : Ring) : ModuleSpace.mixin_of K Leaf_AbelianGroup.
-  refine (ModuleSpace.Mixin _ _ (fun _ _ => pr_Leaf) _ _ _ _); try reflexivity; apply Leaf_unit.
+  apply ModuleSpace.Mixin with
+    (scal := fun _ _ => pr_Leaf).
+  { reflexivity. }
+  { apply Leaf_unit. }
+  { reflexivity. }
+  { reflexivity. }
 Defined.
 Definition Leaf_ModuleSpace_class_of (K : Ring) : ModuleSpace.class_of K (record pm_Leaf) :=
   ModuleSpace.Class _ _ Leaf_AbelianGroup_mixin (Leaf_ModuleSpace_mixin _).
@@ -551,13 +552,19 @@ Section Branch_NormedModule.
     refine (NormedModule.class_of K (record (pm_Branch L (@Some Type T) R))).
   Defined.
    *)
+  (*
+  Definition Branch_None_AbelianGroup_mixin :
+    AbelianGroup.mixin_of (record (pm_Branch L None R)).
+    eapply AbelianGroupFromOpp.
+    apply Opp_Branch_None.
+    auto with typeclass_instances.
+Defined.
 
-  Definition Branch_AbelianGroup_mixin :
-    forall o, AbelianGroup.mixin_of (record (pm_Branch L o R)).
     intro o.
     eapply AbelianGroup.Mixin.
     try reflexivity. apply Leaf_unit.
   Defined.
   Canonical Leaf_AbelianGroup := AbelianGroup.Pack _ Leaf_AbelianGroup_mixin (record pm_Leaf).
+   *)
 
 End Branch_NormedModule.

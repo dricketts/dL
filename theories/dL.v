@@ -37,6 +37,7 @@ Notation "a [<=] b" := (pure Rle <*> a <*> b) (at level 70, right associativity)
 Notation "a [=] b" := (pure (@eq R) <*> a <*> b) (at level 70, right associativity).
 
 Section dL.
+
   Definition var : Type := string.
   Variable vars : fields.
   Definition state : Type := record vars.
@@ -116,6 +117,7 @@ Section dL.
       proj_ActionProp (evolve' dF I).
 
   End Continuous.
+
   Notation "d & I" := (evolve d I) (at level 80, I at level 79).
   Notation "'d[' x ']'" := (mkFlowVal (fun _ st' => get x st')) (at level 30).
   Notation "'#[' e ']'" := (mkFlowVal (fun st _ => e st)) (at level 30).
