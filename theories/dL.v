@@ -21,6 +21,7 @@ Local Open Scope R.
 Local Open Scope string_scope.
 
 Set Implicit Arguments.
+Set Universe Polymorphism.
 
 (** This file formalizes dL using the logics defined in Logics.v *)
 

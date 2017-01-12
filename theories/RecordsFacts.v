@@ -4,7 +4,7 @@ Require Import Program.
 Require Import Records.Records.
 
 (** TODO: This should be moved to the extensible records repository *)
-Class FieldOf vars x T : Prop :=
+Polymorphic Class FieldOf vars x T : Prop :=
   mkFieldOf
     { _field_proof : fields_get x vars = Some T }.
 Arguments _field_proof [_ _ _] _.
