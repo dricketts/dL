@@ -11,6 +11,9 @@ Local Transparent ILInsts.ILFun_Ops.
 Local Open Scope R.
 Local Open Scope string_scope.
 
+(*Set Printing Universes.*)
+Set Universe Polymorphism.
+
 (**
  ** Here's a simple example of using dL.
  ** The following system enforces an upper bound
@@ -29,13 +32,18 @@ Section VelocityBound.
                     (FScons y%field_decl FSnil) .. ))
     : type_scope.
 
-  Definition state :=
-    dL.state
-      {@@ ("a" %e R)
-       ,  ("v" %e R)
-       ,  ("t" %e R)
-       ,  ("y" %e R)
-       @@}.
+  Definition fields : fields@{Set} :=
+    {@@ ("a" %e R)
+     ,  ("v" %e R)
+     ,  ("t" %e R)
+     ,  ("y" %e R)
+     @@}.
+
+  Definition full_state := dL.state fields.
+  Axiom continuous_state : NormedModule R_AbsRing.
+  (* supposedly continuous_state's carrier is full_state or some subset of it *)
+
+  (*Axiom PInst : ProjState fields continuous_state.*)
 
   (* The safety property, i.e. the velocity is at most the
      upper bound. You have to write [get "v"] to access
@@ -44,13 +52,13 @@ Section VelocityBound.
      some of the many examples of how the syntax is very
      verbose in our embedding, but we hope to improve this
      in the future. *)
-  Definition safe : StateProp state :=
+  Definition safe : StateProp full_state :=
     get "v" [<=] pure V.
 
   (* The discrete controller sets the acceleration to some
      value that will be safe until the next execution. It
      also sets the timer to zero. *)
-  Definition ctrl : ActionProp state :=
+  Definition ctrl : ActionProp full_state :=
     "a" ::= ***;;
      ? get "v" [+] get "a"[*]pure d [<=] pure V;;
     "t" ::= pure 0.
@@ -63,16 +71,14 @@ Section VelocityBound.
      and we would definitely like to improve it. The evolution
      invariant follows the [&] symbol. *)
 
-  Definition plant : FlowProp state :=
+  Definition plant : FlowProp full_state :=
     d["v"] [=] #[get "a"] //\\
-     d["a"] [=] pure 0.
+    d["a"] [=] pure 0.
 
-  (* The next two should actually be about some NormedModule of state *)
-
-  Definition evolveL : FlowProp state :=
+  Definition evolveL : FlowProp continuous_state :=
     d["t"] [=] pure 1.
 
-  Definition evolveR : StateProp state :=
+  Definition evolveR : StateProp continuous_state :=
     get "t" [<=] pure d.
 
   Definition plant2 : ActionProp state :=
