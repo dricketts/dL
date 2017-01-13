@@ -616,3 +616,5 @@ Notation "! p" := (p -->> lfalse) (at level 30, p at level 30).
 (** NOTE: In constructive logic (like Coq) negation is defined to be
  ** "implies false".
  **)
+
+Notation "p {{ x <- e }}" := (@Subst _ _ _ x e p _) (at level 30).
