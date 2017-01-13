@@ -6,6 +6,7 @@ Require Import Records.Records.
 Require Import dL.Logics.
 Require Import dL.dL.
 Require Import dL.RecordsFacts.
+Require Import Morphisms.
 Local Transparent ILInsts.ILFun_Ops.
 
 Local Open Scope R.
@@ -40,10 +41,11 @@ Section VelocityBound.
      @@}.
 
   Definition full_state := dL.state fields.
-  Axiom continuous_state : NormedModule R_AbsRing.
-  (* supposedly continuous_state's carrier is full_state or some subset of it *)
 
-  (*Axiom PInst : ProjState fields continuous_state.*)
+  Axiom cstate_class_of : NormedModule.class_of R_AbsRing full_state.
+  Canonical continuous_state : NormedModule R_AbsRing :=
+    NormedModule.Pack R_AbsRing full_state cstate_class_of full_state.
+  Axiom PInst : ProjState fields continuous_state.
 
   (* The safety property, i.e. the velocity is at most the
      upper bound. You have to write [get "v"] to access
@@ -71,17 +73,15 @@ Section VelocityBound.
      and we would definitely like to improve it. The evolution
      invariant follows the [&] symbol. *)
 
-  Definition plant : FlowProp full_state :=
-    d["v"] [=] #[get "a"] //\\
-    d["a"] [=] pure 0.
-
   Definition evolveL : FlowProp continuous_state :=
+    d["v"] [=] #[get "a"] //\\
+    d["a"] [=] pure 0 //\\
     d["t"] [=] pure 1.
 
   Definition evolveR : StateProp continuous_state :=
     get "t" [<=] pure d.
 
-  Definition plant2 : ActionProp state :=
+  Definition plant : ActionProp continuous_state :=
     evolveL & evolveR.
 
   (* Theorem expressing that the system does enforce
@@ -93,38 +93,67 @@ Section VelocityBound.
   Theorem bound_correct :
     |-- safe -->> [[(ctrl;; plant)^*]]safe.
   Proof.
-    intros. charge_intros. rewrite <- star_I.
+    charge_intros.
+    (* induction rule for the Kleene star *)
+    rewrite <- star_I.
     charge_split.
-    { charge_clear. apply G_rule. charge_intro.
-      unfold ctrl. repeat rewrite seq_rule.
-      rewrite nondet_assign_rule. charge_intros.
-      rewrite test_rule. rewrite assign_rule.
-      rewrite Subst_limpl. charge_intro.
+    { charge_clear.
+      apply G_rule.
+      charge_intro.
+      (* Cut-point: we need to prove that safe is preserved by one step *)
+      unfold ctrl.
+      repeat rewrite seq_rule.
+      (* 1: non-deterministic assignment *)
+      rewrite nondet_assign_rule.
+      charge_intros.
+      (* 2: test *)
+      rewrite test_rule.
+      rewrite assign_rule.
+      rewrite Subst_limpl.
+      charge_intro.
       assert (x <= 0 \/ 0 <= x) by psatzl R.
-      destruct H; unfold plant.
-      { rewrite <- differential_cut with (C:=get "a" [<=] pure 0).
-        repeat rewrite Subst_land. charge_split.
+      set (EQ1 := get "v" [+] get "a" [*] pure d [<=] pure V).
+      destruct H; unfold plant, evolveL, evolveR.
+      set (DV := d["v"] [=] #[get "a"]).
+      set (DA := d["a"] [=] pure 0).
+      set (DT := d["t"] [=] pure 1).
+      {
+        (* ⟦dF & Q⟧ C ∧ ⟦dF & Q ∧ C⟧ P ⊢ ⟦dF & Q⟧ P *)
+        rewrite <- differential_cut with (C := get "a" [<=] pure 0).
+        repeat rewrite Subst_land.
+        charge_split.
         { diff_ind. }
-        { unfold safe. diff_ind. } }
+        { unfold safe.
+          diff_ind. } }
       { rewrite <- differential_cut with (C:=pure 0 [<=] get "a").
-        repeat rewrite box_land. repeat rewrite Subst_land. charge_split.
+        repeat rewrite box_land.
+        repeat rewrite Subst_land.
+        charge_split.
         { diff_ind. }
         { rewrite <- differential_cut
-          with (C:=get "v" [+] get "a"[*](pure d [-] get "t")
-                       [<=] pure V).
-          repeat rewrite Subst_land. charge_split.
+          with (C := get "v" [+] get "a"[*] (pure d [-] get "t") [<=] pure V).
+          repeat rewrite Subst_land.
+          charge_split.
           { diff_ind.
             (* This goal requires non-linear arithmetic,
                so we use a foundational non-linear decision
                procedure. In the future, we will call better
                decision procedures such as Z3. *)
-            breakAbstraction. intros. psatz R. }
-          { rewrite <- differential_weakening'. charge_clear.
+            breakAbstraction.
+            intros.
+            psatz R. }
+          { rewrite <- differential_weakening'.
+            charge_clear.
             do 2 rewrite <- Subst_ltrue.
             apply Proper_Subst_lentails; [ reflexivity | reflexivity | ].
             apply Proper_Subst_lentails; [ reflexivity | reflexivity | ].
-            apply G_rule. breakAbstraction. intros. psatz R. } } } }
+            apply G_rule.
+            breakAbstraction.
+            intros.
+            psatz R. } } } }
     { reflexivity. }
   Qed.
+
+
 
 End VelocityBound.
