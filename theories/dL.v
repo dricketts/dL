@@ -324,9 +324,9 @@ Section dL.
     Qed.
 
     Theorem differential_cut :
-      forall (dF : FlowProp cstate) (Q C P : StateProp cstate),
-            [[dF & Q]]proj_StateProp C //\\ [[dF & Q //\\ C]]proj_StateProp P
-        |-- [[dF & Q]]proj_StateProp P.
+      forall (dF : FlowProp cstate) (P : StateProp state) (Q C : StateProp cstate) ,
+            [[dF & Q]] proj_StateProp C //\\ [[dF & Q //\\ C]] P
+        |-- [[dF & Q]] P.
     Proof.
       destruct dF as [ dF ]. destruct Q as [Q]. destruct C as [C]. destruct P as [P].
       cbv beta iota delta - [Rle is_derive].
