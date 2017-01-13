@@ -111,12 +111,13 @@ Section VelocityBound.
       rewrite assign_rule.
       rewrite Subst_limpl.
       charge_intro.
-      assert (x <= 0 \/ 0 <= x) by psatzl R.
       set (EQ1 := get "v" [+] get "a" [*] pure d [<=] pure V).
-      destruct H; unfold plant, evolveL, evolveR.
+      unfold plant, evolveL, evolveR.
       set (DV := d["v"] [=] #[get "a"]).
       set (DA := d["a"] [=] pure 0).
       set (DT := d["t"] [=] pure 1).
+      assert (x <= 0 \/ 0 <= x) by psatzl R.
+      destruct H.
       {
         (* ⟦dF & Q⟧ C ∧ ⟦dF & Q ∧ C⟧ P ⊢ ⟦dF & Q⟧ P *)
         rewrite <- differential_cut with (C := get "a" [<=] pure 0).
