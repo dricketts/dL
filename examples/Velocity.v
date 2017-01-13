@@ -82,9 +82,9 @@ Section VelocityBound.
       assert (x <= 0 \/ 0 <= x) by psatzl R.
       set (EQ1 := get "v" [+] get "a" [*] pure d [<=] pure V).
       destruct H; unfold plant.
-      set (DV := d[ "v"] [=] #[ get "a"]).
-      set (DA := d[ "a"] [=] pure 0).
-      set (DT := d[ "t"] [=] pure 1).
+      set (DV := d["v"] [=] #[get "a"]).
+      set (DA := d["a"] [=] pure 0).
+      set (DT := d["t"] [=] pure 1).
       {
         (* ⟦dF & Q⟧ C ∧ ⟦dF & Q ∧ C⟧ P ⊢ ⟦dF & Q⟧ P *)
         rewrite <- differential_cut with (C := get "a" [<=] pure 0).
