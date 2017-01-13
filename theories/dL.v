@@ -437,39 +437,6 @@ Section dL.
 
   End ContinuousRules.
 
-(** Some automation using Ltac (Coq's tactic language). *)
-
-(* This tactic breaks the logic abstractions. This should be used
-   when the goal has been reduced to a first-order formula over
-   real arithmetic. After applying this tactic, the goal should
-   be ready for arithmetic solvers. *)
-Ltac breakAbstraction :=
-  cbv beta iota delta - [Rle Rge].
-
-(** Using Ltac we can build automation to
- ** automatically construct derivatives using these rules.
- **)
-Ltac prove_derive :=
-  repeat first [ (*simple eapply D_state_val_var
-               |*) simple eapply D_state_val_plus
-               | simple eapply D_state_val_minus
-               | simple eapply D_state_val_mult
-               | simple eapply D_state_val_pure
-               ].
-
-(* This tactic performs differential induction.
-   Currently, we only have a lemma for <=, but it will
-   be easy to add others.
-
-   All arithmetic goals are passed to a simple foundational
-   linear arithmetic solver. In the future, we will link
-   in more powerful arithmetic decision procedures. *)
-Ltac diff_ind :=
-  rewrite <- differential_induction_leq;
-  [ try solve [breakAbstraction; intros; psatzl R]
-  | try prove_derive | try prove_derive
-  | try solve [breakAbstraction; intros; psatzl R] ].
-
 (** Substitution rules *)
 
 Lemma Subst_ap :
@@ -618,3 +585,38 @@ Notation "! p" := (p -->> lfalse) (at level 30, p at level 30).
  **)
 
 Notation "p {{ x <- e }}" := (@Subst _ _ _ x e p _) (at level 30).
+
+(* Tactics must be defined outside of sections to be globally everywhere *)
+
+(** Some automation using Ltac (Coq's tactic language). *)
+
+(* This tactic breaks the logic abstractions. This should be used
+   when the goal has been reduced to a first-order formula over
+   real arithmetic. After applying this tactic, the goal should
+   be ready for arithmetic solvers. *)
+Ltac breakAbstraction :=
+  cbv beta iota delta - [Rle Rge].
+
+(** Using Ltac we can build automation to
+ ** automatically construct derivatives using these rules.
+ **)
+Ltac prove_derive :=
+  repeat first [ (*simple eapply D_state_val_var
+               |*) simple eapply D_state_val_plus
+               | simple eapply D_state_val_minus
+               | simple eapply D_state_val_mult
+               | simple eapply D_state_val_pure
+               ].
+
+(* This tactic performs differential induction.
+   Currently, we only have a lemma for <=, but it will
+   be easy to add others.
+
+   All arithmetic goals are passed to a simple foundational
+   linear arithmetic solver. In the future, we will link
+   in more powerful arithmetic decision procedures. *)
+Ltac diff_ind :=
+  rewrite <- differential_induction_leq;
+  [ try solve [breakAbstraction; intros; psatzl R]
+  | try prove_derive | try prove_derive
+  | try solve [breakAbstraction; intros; psatzl R] ].
