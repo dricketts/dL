@@ -7,6 +7,7 @@ Require Import dL.Logics.
 Require Import dL.dL.
 Require Import dL.RecordsFacts.
 Require Import Morphisms.
+Require Import Program.
 Local Transparent ILInsts.ILFun_Ops.
 
 Local Open Scope R.
@@ -45,7 +46,12 @@ Section VelocityBound.
   Axiom cstate_class_of : NormedModule.class_of R_AbsRing full_state.
   Canonical continuous_state : NormedModule R_AbsRing :=
     NormedModule.Pack R_AbsRing full_state cstate_class_of full_state.
-  Axiom PInst : ProjState fields continuous_state.
+  Instance PInst : ProjState fields continuous_state.
+    apply Build_ProjState with
+      (to_cstate := fun s => s)
+      (from_cstate := fun fs cs => cs).
+    reflexivity.
+  Defined.
 
   (* The safety property, i.e. the velocity is at most the
      upper bound. You have to write [get "v"] to access
@@ -84,6 +90,20 @@ Section VelocityBound.
   Definition plant : ActionProp continuous_state :=
     evolveL & evolveR.
 
+  Ltac break_record :=
+    (* First, break all instances of record and remove unit types *)
+    repeat
+      match goal with
+      | [ v : () |- _ ] => destruct v
+      | [ r : record _ |- _ ] => dependent destruction r
+      end;
+    (* Then, clean all the record values that are not used in the goal *)
+    repeat
+      match goal with
+      | [ r : R |- _ ] => try clear r
+      end
+  .
+
   (* Theorem expressing that the system does enforce
      the upper bound on velocity. The proof is fairly simple
      and can probably be mostly or completely automated, but
@@ -91,7 +111,7 @@ Section VelocityBound.
      rules are applied contextually by [rewrite] or directly
      by [apply]. *)
   Theorem bound_correct :
-    |-- safe -->> [[(ctrl;; plant)^*]]safe.
+    |-- safe -->> [[(ctrl;; plant)^*]] safe.
   Proof.
     charge_intros.
     (* induction rule for the Kleene star *)
@@ -116,14 +136,35 @@ Section VelocityBound.
       set (DV := d["v"] [=] #[get "a"]).
       set (DA := d["a"] [=] pure 0).
       set (DT := d["t"] [=] pure 1).
+      set (dF := DV //\\ DA //\\ DT).
+      set (I := get "t" [<=] pure d).
       assert (x <= 0 \/ 0 <= x) by psatzl R.
       destruct H.
       {
         (* ⟦dF & Q⟧ C ∧ ⟦dF & Q ∧ C⟧ P ⊢ ⟦dF & Q⟧ P *)
-        rewrite <- differential_cut with (C := get "a" [<=] pure 0).
+        rewrite <- differential_cut
+        with (C := (get "a" [<=] pure 0) : StateProp continuous_state).
         repeat rewrite Subst_land.
         charge_split.
-        { diff_ind. }
+        {
+          unfold I.
+          rewrite <- differential_induction_leq.
+          {
+            simpl.
+            intros t.
+            compute.
+            unfold state in t.
+            break_record.
+            intuition.
+          }
+          { admit. (* This should find d["a"] *) }
+          { prove_derive. }
+          {
+            simpl.
+            intros t0 t1.
+            compute.
+            unfold full_state, state in t0, t1.
+            break_record. (* This takes forever... *)
         { unfold safe.
           diff_ind. } }
       { rewrite <- differential_cut with (C:=pure 0 [<=] get "a").
