@@ -148,7 +148,8 @@ Section VelocityBound.
         charge_split.
         {
           unfold I.
-          rewrite <- differential_induction_leq.
+          rewrite <- differential_induction_leq
+          with (e1' := d["a"] : FlowVal continuous_state R).
           {
             simpl.
             intros t.
@@ -157,7 +158,52 @@ Section VelocityBound.
             break_record.
             intuition.
           }
-          { admit. (* This should find d["a"] *) }
+          {
+            unfold D_state_val.
+            unfold get.
+            simpl.
+            intros.
+            unfold is_derive.
+            simpl.
+            unfold filterdiff.
+            set (r := D t !! 353%positive).
+            split.
+            {
+              constructor.
+              {
+                intros.
+                unfold scal.
+                simpl.
+                apply mult_distr_r.
+              }
+              {
+                intros.
+                unfold scal.
+                simpl.
+                now rewrite -> mult_assoc.
+              }
+              {
+                unfold scal.
+                simpl.
+                destruct H0 as [ [? ? [delta [? ?] ] ] ?].
+                exists delta.
+                split.
+                { intuition. }
+                {
+                  unfold scal in H1. simpl in H1.
+                  intros epsilon. specialize (H1 epsilon).
+                  unfold norm in H1. simpl in H1.
+                  unfold norm. simpl.
+                  unfold NormedModule.norm in H1.
+                  unfold NormedModule.mixin in H1.
+                  admit. (* need to actually specify cstate_class_of... *)
+                }
+              }
+            }
+            {
+              admit.
+            }
+          }
           { prove_derive. }
           {
             simpl.
@@ -165,6 +211,9 @@ Section VelocityBound.
             compute.
             unfold full_state, state in t0, t1.
             break_record. (* This takes forever... *)
+            psatzl R.
+          }
+        }
         { unfold safe.
           diff_ind. } }
       { rewrite <- differential_cut with (C:=pure 0 [<=] get "a").
