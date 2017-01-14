@@ -362,7 +362,8 @@ Section dL.
         (D_state_val e1 e1') ->
         (D_state_val e2 e2') ->
         dF //\\ #[I] |-- e1' [<=] e2' ->
-        proj_StateProp I -->> proj_StateProp (e1 [<=] e2) |-- [[dF & I]]proj_StateProp (e1 [<=] e2).
+        proj_StateProp I -->> proj_StateProp (e1 [<=] e2)
+        |-- [[dF & I]] proj_StateProp (e1 [<=] e2).
     Proof.
       destruct dF as [dF]. destruct I as [I]. destruct e1 as [e1].
       destruct e2 as [e2]. destruct e1' as [e1']. destruct e2' as [e2'].
