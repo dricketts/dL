@@ -60,8 +60,10 @@ Section VelocityBound.
      some of the many examples of how the syntax is very
      verbose in our embedding, but we hope to improve this
      in the future. *)
-  Definition safe : StateProp full_state :=
+  Definition continuous_safe : StateProp continuous_state :=
     get "v" [<=] pure V.
+  Definition safe : StateProp full_state :=
+    proj_StateProp continuous_safe.
 
   (* The discrete controller sets the acceleration to some
      value that will be safe until the next execution. It
@@ -214,13 +216,43 @@ Section VelocityBound.
             psatzl R.
           }
         }
-        { unfold safe.
-          diff_ind. } }
-      { rewrite <- differential_cut with (C:=pure 0 [<=] get "a").
+        {
+          unfold safe, continuous_safe.
+          rewrite <- differential_induction_leq
+          with (e1' := d["v"] : FlowVal continuous_state R).
+          {
+            admit.
+          }
+          { admit. }
+          { prove_derive. }
+          {
+            simpl.
+            intros t0 t1.
+            compute.
+            unfold full_state, state in t0, t1.
+            break_record. (* This takes forever... *)
+            psatzl R.
+          }
+        }
+      }
+      {
+        rewrite <- differential_cut
+        with (C := pure 0 [<=] get "a" : StateProp continuous_state).
         repeat rewrite box_land.
         repeat rewrite Subst_land.
         charge_split.
-        { diff_ind. }
+        {
+          rewrite <- differential_induction_leq
+          with (e2' := d["a"] : FlowVal continuous_state R).
+          {
+            breakAbstraction; intros; psatzl R.
+          }
+          { prove_derive. }
+          { admit. }
+          {
+            breakAbstraction; intros; psatzl R.
+          }
+        }
         { rewrite <- differential_cut
           with (C := get "v" [+] get "a"[*] (pure d [-] get "t") [<=] pure V).
           repeat rewrite Subst_land.
