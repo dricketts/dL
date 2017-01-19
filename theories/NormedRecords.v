@@ -264,97 +264,158 @@ Section Branch_None_NormedModule.
     AbelianGroup.Pack _ Branch_None_AbelianGroup_mixin T.
 
   Definition Branch_None_ball : T -> R -> T -> Prop.
-    intros _ _ _. exact True.
+    intros a eps b.
+    dependent destruction a; dependent destruction b.
+    pose proof (UniformSpace.ball _ L_NormedModule_class_of a1 eps b1) as P1.
+    pose proof (UniformSpace.ball _ R_NormedModule_class_of a2 eps b2) as P2.
+    exact (P1 /\ P2).
   Defined.
+
+  Lemma simplify_ball_Branch_None:
+    forall (l1 l2 : record l) (v1 v2 : unit) (r1 r2 : record r) eps,
+      Branch_None_ball
+        (pr_Branch None l1 v1 r1)
+        eps
+        (pr_Branch None l2 v2 r2)
+      =
+      (
+        UniformSpace.ball _ L_NormedModule_class_of l1 eps l2
+        /\
+        UniformSpace.ball _ R_NormedModule_class_of r1 eps r2
+      ).
+  Proof.
+    reflexivity.
+  Qed.
 
   Definition Branch_None_UniformSpace_mixin : UniformSpace.mixin_of T.
     apply UniformSpace.Mixin with
       (ball := Branch_None_ball).
-    { intros. exact I. }
+    {
+      intros x eps.
+      dependent destruction x.
+      rewrite simplify_ball_Branch_None.
+      split.
+      { apply UniformSpace.ax1. }
+      { apply UniformSpace.ax1. }
+    }
+    {
+      intros a b eps.
+      dependent destruction a; dependent destruction b.
+      do 2 rewrite simplify_ball_Branch_None.
+      TODO.
+      split.
+      { apply UniformSpace.ax1. }
+      { apply UniformSpace.ax1. }
+    }
+
+      unfold Branch_None_ball.
+
+    }
     { intros. exact I. }
     { intros. exact I. }
   Defined.
   Canonical Branch_None_UniformSpace :=
     UniformSpace.Pack T Branch_None_UniformSpace_mixin T.
 
-  Section Branch_None_Ring.
+  Definition Branch_None_scal : AR -> T -> T.
+    intros k b.
+    dependent destruction b.
+    apply pr_Branch.
+    {
+      apply (ModuleSpace.scal _ _ L_NormedModule_class_of k).
+      auto.
+    }
+    { exact tt. }
+    {
+      apply (ModuleSpace.scal _ _ R_NormedModule_class_of k).
+      auto.
+    }
+  Defined.
 
-    Definition Branch_None_scal : AR -> T -> T.
-      intros k b.
-      dependent destruction b.
-      apply pr_Branch.
-      {
-        apply (ModuleSpace.scal _ _ L_NormedModule_class_of k).
-        auto.
-      }
-      { exact tt. }
-      {
-        apply (ModuleSpace.scal _ _ R_NormedModule_class_of k).
-        auto.
-      }
-    Defined.
+  Lemma simplify_scal_Branch_None:
+    forall (k : AR) (l1 : record l) (v : unit) (r1 : record r),
+      Branch_None_scal k (pr_Branch None l1 v r1)
+      = pr_Branch
+          None
+          (ModuleSpace.scal _ _ L_NormedModule_class_of k l1 : record l)
+          tt
+          (ModuleSpace.scal _ _ R_NormedModule_class_of k r1 : record r).
+  Proof.
+    reflexivity.
+  Qed.
 
-    Goal False.
-      assert (k : AR) by admit.
-      assert (l' : record l) by admit.
-      pose proof (ModuleSpace.scal _ _ L_NormedModule_class_of k).
-      specialize (X l').
+  Definition Branch_None_ModuleSpace_mixin
+    : ModuleSpace.mixin_of AR Branch_None_AbelianGroup.
+    unfold Branch_None_AbelianGroup.
+    apply ModuleSpace.Mixin with
+    (scal := Branch_None_scal).
+    {
+      intros x y u.
+      simpl in u.
+      dependent destruction u.
+      do 3 rewrite simplify_scal_Branch_None.
+      f_equal.
+      { apply ModuleSpace.ax1. }
+      { apply ModuleSpace.ax1. }
+    }
+    {
+      intros u.
+      simpl in u.
+      dependent destruction u.
+      rewrite simplify_scal_Branch_None.
+      f_equal.
+      { apply ModuleSpace.ax2. }
+      { now destruct y. }
+      { apply ModuleSpace.ax2. }
+    }
+    {
+      intros x u v.
+      simpl in *.
+      dependent destruction u; dependent destruction v.
+      rewrite simplify_plus_Branch_None.
+      do 3 rewrite simplify_scal_Branch_None.
+      rewrite simplify_plus_Branch_None.
+      f_equal.
+      { apply ModuleSpace.ax3. }
+      { apply ModuleSpace.ax3. }
+    }
+    {
+      intros x y u.
+      simpl in u.
+      dependent destruction u.
+      do 3 rewrite simplify_scal_Branch_None.
+      rewrite simplify_plus_Branch_None.
+      f_equal.
+      { apply ModuleSpace.ax4. }
+      { apply ModuleSpace.ax4. }
+    }
+  Defined.
+  Definition Branch_None_ModuleSpace_class_of : ModuleSpace.class_of AR T :=
+    ModuleSpace.Class
+      _ _ Branch_None_AbelianGroup_mixin Branch_None_ModuleSpace_mixin.
+  Canonical Branch_None_ModuleSpace :=
+    ModuleSpace.Pack
+      AR T Branch_None_ModuleSpace_class_of T.
 
-    Lemma simplify_scal_Branch_None:
-      forall (k : AR) (l1 : record l) (v : unit) (r1 : record r),
-        Branch_None_scal k (pr_Branch None l1 v r1)
-        = pr_Branch
-            None
-            (ModuleSpace.scal _ _ L_NormedModule_class_of k l1 : record l)
-            tt
-            (ModuleSpace.scal _ _ R_NormedModule_class_of k r1 : record r).
-    Proof.
-      reflexivity.
-    Qed.
+  Definition Branch_None_NormedModuleAux_class_of
+    : NormedModuleAux.class_of AR T :=
+    NormedModuleAux.Class
+      _ _ Branch_None_ModuleSpace_class_of Branch_None_UniformSpace_mixin.
+  Canonical Branch_None_NormedModuleAux :=
+    NormedModuleAux.Pack
+      AR T Branch_None_NormedModuleAux_class_of T.
 
-    Definition Branch_None_ModuleSpace_mixin
-      : ModuleSpace.mixin_of AR Branch_None_AbelianGroup.
-      apply ModuleSpace.Mixin with
-      (scal := Branch_None_scal).
-      {
-        intros x y u.
-        unfold Branch_None_AbelianGroup in u.
-        simpl in u.
-        dependent destruction u.
-        unfold Branch_None_scal.
-        simpl.
+  Definition Branch_None_norm : Branch_None_NormedModuleAux -> R.
+    intros b.
+    unfold Branch_None_NormedModuleAux in b.
+    simpl in b.
+    dependent destruction b.
+    exact R0.
+  Defined.
 
-        reflexivity. }
-      { apply Branch_None_unit. }
-      { reflexivity. }
-      { reflexivity. }
-    Defined.
-    Definition Branch_None_ModuleSpace_class_of : ModuleSpace.class_of K T :=
-      ModuleSpace.Class _ _ Branch_None_AbelianGroup_mixin Branch_None_ModuleSpace_mixin.
-    Canonical Branch_None_ModuleSpace :=
-      ModuleSpace.Pack
-        K T Branch_None_ModuleSpace_class_of T.
-
-  End Branch_None_Ring.
-
-  Section Branch_None_AbsRing.
-
-    Variable K : AbsRing.
-
-    Definition Branch_None_NormedModuleAux_class_of : NormedModuleAux.class_of K T :=
-      NormedModuleAux.Class
-        _ _ (Branch_None_ModuleSpace_class_of _) Branch_None_UniformSpace_mixin.
-    Canonical Branch_None_NormedModuleAux :=
-      NormedModuleAux.Pack
-        K T Branch_None_NormedModuleAux_class_of T.
-
-    Definition Branch_None_norm : Branch_None_NormedModuleAux -> R.
-      intros _. exact R0.
-    Defined.
-
-    Definition Branch_None_norm_factor : R.
-      exact R1.
-    Defined.
+  Definition Branch_None_norm_factor : R.
+    exact R1.
+  Defined.
 
     Definition Branch_None_NormedModule_mixin
       : NormedModule.mixin_of K Branch_None_NormedModuleAux.
