@@ -564,6 +564,58 @@ Qed.
 
 End dL.
 
+Section DVars.
+
+  Variable cvars : fields.
+
+  Definition cstate : Type := record cvars.
+
+  Axiom record_NormedModule_class_of :
+    forall (vs : fields), NormedModule.class_of R_AbsRing (record vs).
+
+  Canonical continuous_state : NormedModule R_AbsRing :=
+    NormedModule.Pack
+      R_AbsRing cstate
+      (record_NormedModule_class_of cvars) cstate.
+
+  Theorem D_state_val_var :
+    forall (x : var) {FO : FieldOf cvars x R},
+      D_state_val continuous_state (get x) (mkFlowVal (fun _ st' => get x st')).
+  Proof.
+    intros x FO F D t ID.
+    simpl in *.
+    set (
+        dtx :=
+          (@Rget cvars (D t) (string_to_p x) R
+                 (@_field_proof cvars (string_to_p x) R FO))
+      ).
+    split.
+    {
+      unfold scal.
+      simpl.
+      unfold mult.
+      simpl.
+      split; intros.
+      {
+        unfold plus; simpl.
+        apply Rmult_plus_distr_r.
+      }
+      {
+        unfold scal; simpl; unfold mult; simpl.
+        apply Rmult_assoc.
+      }
+      {
+        destruct ID as [[_ _ [M [A B]]] _].
+        exists M.
+        intuition.
+        unfold scal in B; simpl in B.
+        unfold ModuleSpace.scal in B.
+        unfold ModuleSpace.mixin in B.
+        intros.
+  Qed.
+
+End DVars.
+
 (* Redefining notations since they did not survive the section. *)
 
 Notation "x ::= e" := (@assign _ x _ e _) (at level 80, e at level 70).

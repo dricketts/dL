@@ -1,570 +1,493 @@
 Set Universe Polymorphism.
 
-Require Import Records.Records.
+Require Import Coq.Reals.Reals.
+Require Import Coquelicot.Coquelicot.
+Require Import Coq.micromega.Psatz.
 Require Import Equality.
+Require Import Records.Records.
 
-Ltac infer_instance := constructor; auto with typeclass_instances.
+Section Leaf.
 
-(*** Plus ***)
+  Local Notation T := (record pm_Leaf) (only parsing).
 
-Class Commutative {T : Type} (op : T -> T -> T) :=
-  { commutativity : forall a b, op a b = op b a; }.
+  Lemma Leaf_unit : forall x : T, pr_Leaf = x.
+  Proof.
+    dependent destruction x. reflexivity.
+  Qed.
 
-Class Associative {T : Type} (op : T -> T -> T) :=
-  { associativity : forall a b c, op a (op b c) = op (op a b) c; }.
+  Definition Leaf_plus : T -> T -> T.
+    intros _ _. exact pr_Leaf.
+  Defined.
 
-Class PlusOp (T : Type) := plus_op : T -> T -> T.
-Infix "+" := (plus_op).
+  Definition Leaf_opp : T -> T.
+    intros _. exact pr_Leaf.
+  Defined.
 
-Class Plus T {Plus_PlusOp : PlusOp T} :=
-  {
-    Plus_Commutative :> Commutative plus_op;
-    Plus_Associative :> Associative plus_op;
-  }.
+  Definition Leaf_zero : T.
+    exact pr_Leaf.
+  Defined.
 
-(*** Plus Leaf ***)
+  Definition Leaf_AbelianGroup_mixin : AbelianGroup.mixin_of T.
+    apply AbelianGroup.Mixin with
+      (plus := Leaf_plus)
+      (opp := Leaf_opp)
+      (zero := Leaf_zero).
+    { reflexivity. }
+    { reflexivity. }
+    { apply Leaf_unit. }
+    { reflexivity. }
+  Defined.
+  Canonical Leaf_AbelianGroup :=
+    AbelianGroup.Pack _ Leaf_AbelianGroup_mixin T.
 
-Global Instance PlusOp_Leaf : PlusOp (record pm_Leaf).
-Proof.
-  unfold PlusOp. intros _ _. exact pr_Leaf.
-Defined.
+  Definition Leaf_mult : T -> T -> T.
+    intros _ _. exact pr_Leaf.
+  Defined.
 
-Global Instance Plus_Leaf : Plus (record pm_Leaf).
-Proof.
-  constructor.
-  { constructor. intros. reflexivity. }
-  { constructor. intros. reflexivity. }
-Qed.
+  Definition Leaf_one : T.
+    exact pr_Leaf.
+  Defined.
 
-(*** Plus Branch None ***)
-
-Section Branch_None.
-
-  Variables (l r : fields).
-
-  Section With_PlusOp.
-
-    Context `{PlusOp (record l)} `{PlusOp (record r)}.
-
-    Global Instance PlusOp_Branch_None :
-      PlusOp (record (pm_Branch l None r)).
-    Proof.
-      intros a b.
-      dependent destruction a; dependent destruction b.
-      constructor.
-      { exact (a1 + b1). }
-      { exact tt. }
-      { exact (a2 + b2). }
-    Defined.
-
-    Lemma simplify_plus_Branch_None:
-      forall (l1 l2 : record l) (v1 v2: unit) (r1 r2 : record r),
-        pr_Branch None l1 v1 r1 + pr_Branch None l2 v2 r2 =
-        pr_Branch None (l1 + l2) tt (r1 + r2).
-    Proof.
-      intros.
-      reflexivity.
-    Qed.
-
-  End With_PlusOp.
-
-  Section With_Plus.
-
-    Context `{Plus (record l)} `{Plus (record r)}.
-
-    Global Instance Plus_Branch_None : Plus (record (pm_Branch l None r)).
-    Proof.
-      constructor.
-      {
-        constructor.
-        intros a b.
-        dependent destruction a; dependent destruction b.
-        do 2 rewrite simplify_plus_Branch_None.
-        f_equal; apply commutativity.
-      }
-      {
-        constructor.
-        intros a b c.
-        dependent destruction a; dependent destruction b; dependent destruction c.
-        do 4 rewrite simplify_plus_Branch_None.
-        f_equal; apply associativity.
-      }
-    Qed.
-
-  End With_Plus.
-
-End Branch_None.
-
-(*** Plus Branch Some ***)
-
-Section Branch_Some.
-
-  Variables (l r : fields).
-  Context `{T : Type}.
-
-  Section With_PlusOp.
-
-    Context `{PlusOp (record l)} `{PlusOp T} `{PlusOp (record r)}.
-
-    Global Instance PlusOp_Branch_Some :
-      PlusOp (record (pm_Branch l (Some T) r)).
-    Proof.
-      intros a b.
-      dependent destruction a; dependent destruction b.
-      constructor.
-      { exact (a1 + b1). }
-      { exact (y + y0). }
-      { exact (a2 + b2). }
-    Defined.
-
-    Lemma simplify_plus_Branch_Some:
-      forall (l1 l2 : record l) (v1 v2 : T) (r1 r2 : record r),
-        pr_Branch (Some T) l1 v1 r1 + pr_Branch (Some T) l2 v2 r2 =
-        pr_Branch (Some T) (l1 + l2) (v1 + v2) (r1 + r2).
-    Proof.
-      intros.
-      reflexivity.
-    Qed.
-
-  End With_PlusOp.
-
-  Section With_Plus.
-
-    Context `{Plus (record l)} `{Plus T} `{Plus (record r)}.
-
-    Global Instance Plus_Branch_Some : Plus (record (pm_Branch l (Some T) r)).
-    Proof.
-      constructor.
-      {
-        constructor.
-        intros a b.
-        dependent destruction a; dependent destruction b.
-        do 2 rewrite simplify_plus_Branch_Some.
-        f_equal; apply commutativity.
-      }
-      {
-        constructor.
-        intros a b c.
-        dependent destruction a; dependent destruction b; dependent destruction c.
-        do 4 rewrite simplify_plus_Branch_Some.
-        f_equal; apply associativity.
-      }
-    Qed.
-
-  End With_Plus.
-
-End Branch_Some.
-
-(*** Testing Plus ***)
-
-Global Polymorphic Instance PlusOp_nat: PlusOp nat.
-Proof. exact Nat.add. Defined.
-
-Global Polymorphic Instance Plus_nat: Plus nat.
-Proof.
-  constructor.
-  { constructor. exact PeanoNat.Nat.add_comm. }
-  { constructor. exact PeanoNat.Nat.add_assoc. }
-Qed.
-
-Goal Plus (record pm_Leaf).
-  auto with typeclass_instances.
-Qed.
-
-Goal Plus (record (pm_Branch pm_Leaf None pm_Leaf)).
-  auto with typeclass_instances.
-Qed.
-
-Goal Plus (record (pm_Branch pm_Leaf (Some nat) pm_Leaf)).
-  auto with typeclass_instances.
-Qed.
-
-Definition example :=
-  record
-    (fields_join
-       (fields_singleton
-          (String.String "x" String.EmptyString)
-          nat)
-       pm_Leaf).
-
-Global Instance PlusOp_example : PlusOp example.
-Proof.
-  unfold example.
-  simpl.
-  auto 10 with typeclass_instances.
-Defined.
-
-Global Instance Plus_example : Plus example.
-Proof.
-  unfold example.
-  simpl.
   (*
-    For some reason this does not work:
-  auto 100 with typeclass_instances.
+  Definition Leaf_Ring_mixin : Ring.mixin_of Leaf_AbelianGroup.
+    apply Ring.Mixin with
+      (mult := Leaf_mult)
+      (one  := Leaf_one).
+    { reflexivity. }
+    { apply Leaf_unit. }
+    { apply Leaf_unit. }
+    { reflexivity. }
+    { reflexivity. }
+  Defined.
+  Canonical Leaf_Ring :=
+    Ring.Pack T (Ring.Class _ _ Leaf_Ring_mixin) T.
    *)
-  apply Plus_Branch_None.
-  auto 10 with typeclass_instances.
-  auto 10 with typeclass_instances.
-Defined.
 
-(*** Zero ***)
+  Definition Leaf_ball : T -> R -> T -> Prop.
+    intros _ _ _. exact True.
+  Defined.
 
-Delimit Scope zero with zero.
-Open Scope zero.
+  Definition Leaf_UniformSpace_mixin : UniformSpace.mixin_of T.
+    apply UniformSpace.Mixin with
+      (ball := Leaf_ball).
+    { intros. exact I. }
+    { intros. exact I. }
+    { intros. exact I. }
+  Defined.
+  Canonical Leaf_UniformSpace :=
+    UniformSpace.Pack T Leaf_UniformSpace_mixin T.
 
-Class RightNeutral {T : Type} (op : T -> T -> T) (n : T) :=
-  { right_neutral: forall x, op x n = x; }.
+  Section Leaf_Ring.
 
-Class ZeroOp (T : Type) := zero_op : T.
-Notation "0" := (zero_op) : zero.
+    Variable K : Ring.
 
-Class Zero (T : Type) `{Plus T} {Zero_ZeroOp : ZeroOp T} :=
-  {
-    Zero_RightNeutral :> RightNeutral plus_op 0;
-  }.
-
-(*** Zero Leaf ***)
-
-Global Polymorphic Instance ZeroOp_Leaf : ZeroOp (record pm_Leaf).
-Proof.
-  unfold ZeroOp. exact pr_Leaf.
-Defined.
-
-Global Polymorphic Instance RightNeutral_Leaf : RightNeutral plus_op zero_op.
-Proof.
-  constructor.
-  intro x.
-  dependent destruction x.
-  reflexivity.
-Qed.
-
-Global Polymorphic Instance Zero_Leaf : Zero (record pm_Leaf).
-Proof. infer_instance. Qed.
-
-Section Zero_Branch.
-
-  Variables (l r : fields).
-
-  Section ZeroOp_Branch_None.
-
-    Context `{ZeroOp (record l)} `{ZeroOp (record r)}.
-
-    Global Instance ZeroOp_Branch_None : ZeroOp (record (pm_Branch l None r)).
-    Proof.
-      unfold ZeroOp.
-      constructor.
-      exact zero_op.
-      exact tt.
-      exact zero_op.
+    Definition Leaf_scal : K -> T -> T.
+      intros _ _. exact pr_Leaf.
     Defined.
 
-    Lemma simplify_zero_Branch_None: 0 = pr_Branch None 0 tt 0.
-    Proof. reflexivity. Qed.
+    Definition Leaf_ModuleSpace_mixin
+      : ModuleSpace.mixin_of K Leaf_AbelianGroup.
+      apply ModuleSpace.Mixin with
+      (scal := Leaf_scal).
+      { reflexivity. }
+      { apply Leaf_unit. }
+      { reflexivity. }
+      { reflexivity. }
+    Defined.
+    Definition Leaf_ModuleSpace_class_of : ModuleSpace.class_of K T :=
+      ModuleSpace.Class _ _ Leaf_AbelianGroup_mixin Leaf_ModuleSpace_mixin.
+    Canonical Leaf_ModuleSpace :=
+      ModuleSpace.Pack
+        K T Leaf_ModuleSpace_class_of T.
 
-  End ZeroOp_Branch_None.
+  End Leaf_Ring.
 
-  Section Zero_Branch_None.
+  Section Leaf_AbsRing.
 
-    Context `{ZeroOp (record l)} `{ZeroOp (record r)}.
-    Context `{Zero (record l)} `{Zero (record r)}.
+    Variable K : AbsRing.
 
-    Global Instance Zero_Branch_None : Zero (record (pm_Branch l None r)).
-    Proof.
-      constructor.
-      constructor.
+    Definition Leaf_NormedModuleAux_class_of : NormedModuleAux.class_of K T :=
+      NormedModuleAux.Class
+        _ _ (Leaf_ModuleSpace_class_of _) Leaf_UniformSpace_mixin.
+    Canonical Leaf_NormedModuleAux :=
+      NormedModuleAux.Pack
+        K T Leaf_NormedModuleAux_class_of T.
+
+    Definition Leaf_norm : Leaf_NormedModuleAux -> R.
+      intros _. exact R0.
+    Defined.
+
+    Definition Leaf_norm_factor : R.
+      exact R1.
+    Defined.
+
+    Definition Leaf_NormedModule_mixin
+      : NormedModule.mixin_of K Leaf_NormedModuleAux.
+      apply NormedModule.Mixin with
+        (norm        := Leaf_norm)
+        (norm_factor := Leaf_norm_factor).
+      { intros. unfold Leaf_norm. psatzl R. }
+      { intros. unfold Leaf_norm. psatz R. }
+      { intros. exact I. }
+      {
+        intros.
+        destruct eps.
+        unfold Leaf_norm, Leaf_norm_factor.
+        simpl.
+        psatz R.
+      }
+      { intros. symmetry. apply Leaf_unit. }
+    Defined.
+    Definition Leaf_NormedModule_class_of : NormedModule.class_of K T :=
+      NormedModule.Class
+        _ _ Leaf_NormedModuleAux_class_of Leaf_NormedModule_mixin.
+    Canonical Leaf_NormedModule_class_of.
+    Canonical Leaf_NormedModule :=
+      NormedModule.Pack
+        K T Leaf_NormedModule_class_of T.
+
+  End Leaf_AbsRing.
+
+End Leaf.
+
+Section Branch_None_NormedModule.
+
+  Variable AR : AbsRing.
+
+  Variable l r : fields.
+
+  Hypothesis L_NormedModule_class_of : NormedModule.class_of AR (record l).
+  Hypothesis R_NormedModule_class_of : NormedModule.class_of AR (record r).
+
+  Local Notation T := (record (pm_Branch l None r)) (only parsing).
+
+  Definition Branch_None_plus : T -> T -> T.
+    intros a b.
+    dependent destruction a; dependent destruction b.
+    constructor.
+    { exact (AbelianGroup.plus _ L_NormedModule_class_of a1 b1). }
+    { exact tt. }
+    { exact (AbelianGroup.plus _ R_NormedModule_class_of a2 b2). }
+  Defined.
+
+  Lemma simplify_plus_Branch_None:
+    forall (l1 l2 : record l) (v1 v2 : unit) (r1 r2 : record r),
+      Branch_None_plus
+        (pr_Branch None l1 v1 r1)
+        (pr_Branch None l2 v2 r2) =
+      pr_Branch
+        None
+        (AbelianGroup.plus _ L_NormedModule_class_of l1 l2)
+        tt
+        (AbelianGroup.plus _ R_NormedModule_class_of r1 r2).
+  Proof.
+    reflexivity.
+  Qed.
+
+  Definition Branch_None_opp : T -> T.
+    intros x.
+    dependent destruction x.
+    constructor.
+    { exact (AbelianGroup.opp _ L_NormedModule_class_of x1). }
+    { exact tt. }
+    { exact (AbelianGroup.opp _ R_NormedModule_class_of x2). }
+  Defined.
+
+  Lemma simplify_opp_Branch_None :
+    forall a b v,
+      Branch_None_opp (pr_Branch None a v b)
+      = pr_Branch
+          None
+          (AbelianGroup.opp _ L_NormedModule_class_of a)
+          tt
+          (AbelianGroup.opp _ R_NormedModule_class_of b).
+  Proof.
+    destruct v.
+    reflexivity.
+  Qed.
+
+  Definition Branch_None_zero : T.
+    constructor.
+    { exact (AbelianGroup.zero _ L_NormedModule_class_of). }
+    { exact tt. }
+    { exact (AbelianGroup.zero _ R_NormedModule_class_of). }
+  Defined.
+
+  Lemma simplify_zero_Branch_None :
+    Branch_None_zero =
+    pr_Branch
+      None
+      (AbelianGroup.zero _ L_NormedModule_class_of)
+      tt
+      (AbelianGroup.zero _ R_NormedModule_class_of).
+  Proof. reflexivity. Qed.
+
+  Definition Branch_None_AbelianGroup_mixin : AbelianGroup.mixin_of T.
+    apply AbelianGroup.Mixin with
+      (plus := Branch_None_plus)
+      (opp  := Branch_None_opp)
+      (zero := Branch_None_zero).
+    {
+      intros a b.
+      dependent destruction a; dependent destruction b.
+      do 2 rewrite simplify_plus_Branch_None.
+      f_equal; apply AbelianGroup.ax1.
+    }
+    {
+      intros a b c.
+      dependent destruction a; dependent destruction b; dependent destruction c.
+      do 4 rewrite simplify_plus_Branch_None.
+      f_equal; apply AbelianGroup.ax2.
+    }
+    {
       intro x.
       dependent destruction x.
       rewrite simplify_zero_Branch_None.
       rewrite simplify_plus_Branch_None.
       f_equal.
-      apply right_neutral.
-      now destruct y.
-      apply right_neutral.
-    Qed.
-
-  End Zero_Branch_None.
-
-  Section Some.
-
-    Context `{T : Type}.
-
-    Section ZeroOp_Branch_Some.
-
-      Context `{ZeroOp (record l)} `{ZeroOp T} `{ZeroOp (record r)}.
-
-      Global Instance ZeroOp_Branch_Some : ZeroOp (record (pm_Branch l (Some T) r)).
-      Proof.
-        unfold ZeroOp.
-        constructor.
-        exact zero_op.
-        exact 0.
-        exact zero_op.
-      Defined.
-
-      Lemma simplify_zero_Branch_Some : 0 = pr_Branch (Some T) 0 0 0.
-      Proof. reflexivity. Qed.
-
-    End ZeroOp_Branch_Some.
-
-    Section Zero_Branch_Some.
-
-      Context `{Zero (record l)} `{Zero T} `{Zero (record r)}.
-
-      Global Instance Zero_Branch_Some : Zero (record (pm_Branch l (Some T) r)).
-      Proof.
-        constructor.
-        constructor.
-        intro x.
-        dependent destruction x.
-        rewrite simplify_zero_Branch_Some.
-        rewrite simplify_plus_Branch_Some.
-        f_equal.
-        apply right_neutral.
-        apply right_neutral.
-        apply right_neutral.
-      Qed.
-
-    End Zero_Branch_Some.
-
-  End Some.
-
-End Zero_Branch.
-
-(*** Opp ***)
-
-Class OppOp (T : Type) := opp_op : T -> T.
-Notation "- x" := (opp_op x).
-Notation "a - b" := (a + (- b)).
-
-Class Opp (T : Type) `{Zero T} {Opp_OppOp : OppOp T} :=
-  {
-    opp_spec : forall (x : T), x - x = 0;
-  }.
-
-(*** Opp Leaf ***)
-
-Global Polymorphic Instance OppOp_Leaf : OppOp (record pm_Leaf).
-Proof.
-  unfold OppOp. intros _. exact pr_Leaf.
-Defined.
-
-Global Polymorphic Instance Opp_Leaf : Opp (record pm_Leaf).
-Proof.
-  constructor. intros x. reflexivity.
-Qed.
-
-Section Opp_Branch.
-
-  Variables (l r : fields).
-
-  Section OppOp_Branch_None.
-
-    Context `{OppOp (record l)} `{OppOp (record r)}.
-
-    Global Instance OppOp_Branch_None : OppOp (record (pm_Branch l None r)).
-    Proof.
-      intros x.
-      dependent destruction x.
-      constructor.
-      exact (- x1).
-      exact tt.
-      exact (- x2).
-    Defined.
-
-    Lemma simplify_opp_Branch_None: forall a b v,
-        - (pr_Branch None a v b) = pr_Branch None (- a) tt (- b).
-    Proof.
-      destruct v.
-      reflexivity.
-    Qed.
-
-  End OppOp_Branch_None.
-
-  Section Opp_Branch_None.
-
-    Context `{OppOp (record l)} `{OppOp (record r)}.
-    Context `{Opp (record l)} `{Opp (record r)}.
-
-    Global Instance Opp_Branch_None : Opp (record (pm_Branch l None r)).
-    Proof.
-      constructor.
+      { apply AbelianGroup.ax3. }
+      { now destruct y. }
+      { apply AbelianGroup.ax3. }
+    }
+    {
       intro x.
       dependent destruction x.
       rewrite simplify_opp_Branch_None.
       rewrite simplify_plus_Branch_None.
       rewrite simplify_zero_Branch_None.
       f_equal.
-      apply opp_spec.
-      apply opp_spec.
+      { apply AbelianGroup.ax4. }
+      { apply AbelianGroup.ax4. }
+    }
+  Defined.
+  Canonical Branch_None_AbelianGroup :=
+    AbelianGroup.Pack _ Branch_None_AbelianGroup_mixin T.
+
+  Definition Branch_None_ball : T -> R -> T -> Prop.
+    intros _ _ _. exact True.
+  Defined.
+
+  Definition Branch_None_UniformSpace_mixin : UniformSpace.mixin_of T.
+    apply UniformSpace.Mixin with
+      (ball := Branch_None_ball).
+    { intros. exact I. }
+    { intros. exact I. }
+    { intros. exact I. }
+  Defined.
+  Canonical Branch_None_UniformSpace :=
+    UniformSpace.Pack T Branch_None_UniformSpace_mixin T.
+
+  Section Branch_None_Ring.
+
+    Definition Branch_None_scal : AR -> T -> T.
+      intros k b.
+      dependent destruction b.
+      apply pr_Branch.
+      {
+        apply (ModuleSpace.scal _ _ L_NormedModule_class_of k).
+        auto.
+      }
+      { exact tt. }
+      {
+        apply (ModuleSpace.scal _ _ R_NormedModule_class_of k).
+        auto.
+      }
+    Defined.
+
+    Goal False.
+      assert (k : AR) by admit.
+      assert (l' : record l) by admit.
+      pose proof (ModuleSpace.scal _ _ L_NormedModule_class_of k).
+      specialize (X l').
+
+    Lemma simplify_scal_Branch_None:
+      forall (k : AR) (l1 : record l) (v : unit) (r1 : record r),
+        Branch_None_scal k (pr_Branch None l1 v r1)
+        = pr_Branch
+            None
+            (ModuleSpace.scal _ _ L_NormedModule_class_of k l1 : record l)
+            tt
+            (ModuleSpace.scal _ _ R_NormedModule_class_of k r1 : record r).
+    Proof.
+      reflexivity.
     Qed.
 
-  End Opp_Branch_None.
+    Definition Branch_None_ModuleSpace_mixin
+      : ModuleSpace.mixin_of AR Branch_None_AbelianGroup.
+      apply ModuleSpace.Mixin with
+      (scal := Branch_None_scal).
+      {
+        intros x y u.
+        unfold Branch_None_AbelianGroup in u.
+        simpl in u.
+        dependent destruction u.
+        unfold Branch_None_scal.
+        simpl.
 
-  Section Some.
+        reflexivity. }
+      { apply Branch_None_unit. }
+      { reflexivity. }
+      { reflexivity. }
+    Defined.
+    Definition Branch_None_ModuleSpace_class_of : ModuleSpace.class_of K T :=
+      ModuleSpace.Class _ _ Branch_None_AbelianGroup_mixin Branch_None_ModuleSpace_mixin.
+    Canonical Branch_None_ModuleSpace :=
+      ModuleSpace.Pack
+        K T Branch_None_ModuleSpace_class_of T.
 
-    Context `{T : Type}.
+  End Branch_None_Ring.
 
-    Section OppOp_Branch_Some.
+  Section Branch_None_AbsRing.
 
-      Context `{OppOp (record l)} `{OppOp T} `{OppOp (record r)}.
+    Variable K : AbsRing.
 
-      Global Instance OppOp_Branch_Some : OppOp (record (pm_Branch l (Some T) r)).
-      Proof.
-        unfold OppOp.
-        intros x.
-        dependent destruction x.
-        constructor.
-        exact (- x1).
-        exact (- y).
-        exact (- x2).
-      Defined.
+    Definition Branch_None_NormedModuleAux_class_of : NormedModuleAux.class_of K T :=
+      NormedModuleAux.Class
+        _ _ (Branch_None_ModuleSpace_class_of _) Branch_None_UniformSpace_mixin.
+    Canonical Branch_None_NormedModuleAux :=
+      NormedModuleAux.Pack
+        K T Branch_None_NormedModuleAux_class_of T.
 
-      Lemma simplify_opp_Branch_Some: forall a b v,
-          - (pr_Branch (Some T) a v b) = pr_Branch (Some T) (- a) (- v) (- b).
-      Proof.
-        reflexivity.
-      Qed.
+    Definition Branch_None_norm : Branch_None_NormedModuleAux -> R.
+      intros _. exact R0.
+    Defined.
 
-    End OppOp_Branch_Some.
+    Definition Branch_None_norm_factor : R.
+      exact R1.
+    Defined.
 
-    Section Opp_Branch_Some.
+    Definition Branch_None_NormedModule_mixin
+      : NormedModule.mixin_of K Branch_None_NormedModuleAux.
+      apply NormedModule.Mixin with
+        (norm        := Branch_None_norm)
+        (norm_factor := Branch_None_norm_factor).
+      { intros. unfold Branch_None_norm. psatzl R. }
+      { intros. unfold Branch_None_norm. psatz R. }
+      { intros. exact I. }
+      {
+        intros.
+        destruct eps.
+        unfold Branch_None_norm, Branch_None_norm_factor.
+        simpl.
+        psatz R.
+      }
+      { intros. symmetry. apply Branch_None_unit. }
+    Defined.
+    Definition Branch_None_NormedModule_class_of : NormedModule.class_of K T :=
+      NormedModule.Class
+        _ _ Branch_None_NormedModuleAux_class_of Branch_None_NormedModule_mixin.
+    Canonical Branch_None_NormedModule_class_of.
+    Canonical Branch_None_NormedModule :=
+      NormedModule.Pack
+        K T Branch_None_NormedModule_class_of T.
 
-      Context `{Opp (record l)} `{Opp T} `{Opp (record r)}.
+  End Branch_None_AbsRing.
 
-      Global Instance Opp_Branch_Some : Opp (record (pm_Branch l (Some T) r)).
-      Proof.
-        constructor.
-        intro x.
-        dependent destruction x.
-        rewrite simplify_opp_Branch_Some.
-        rewrite simplify_plus_Branch_Some.
-        rewrite simplify_zero_Branch_Some.
-        f_equal.
-        apply opp_spec.
-        apply opp_spec.
-        apply opp_spec.
-      Qed.
+End Branch_None_NormedModule.
 
-    End Opp_Branch_Some.
+Section Branch_Some_NormedModule.
 
-  End Some.
-
-End Opp_Branch.
-
-Require Import Coq.Reals.Reals.
-Require Import Coquelicot.Coquelicot.
-Require Import Coq.micromega.Psatz.
-
-Class AbelianGroup T :=
-  {
-    AbelianGroup_mixin :> AbelianGroup.mixin_of T
-  }.
-
-Global Instance AbelianGroupFromOpp T `{Opp T} : AbelianGroup T.
-Proof.
-  constructor.
-  apply AbelianGroup.Mixin with
-    (plus := plus_op)
-    (opp := opp_op)
-    (zero := 0%zero).
-  { apply commutativity. }
-  { apply associativity. }
-  { apply right_neutral. }
-  { apply opp_spec. }
-Defined.
-
-Lemma Leaf_unit : forall x : record pm_Leaf, pr_Leaf = x.
-Proof.
-  Require Import Equality. dependent destruction x. reflexivity.
-Qed.
-
-Definition Leaf_AbelianGroup_mixin : AbelianGroup.mixin_of (record pm_Leaf).
-  eapply AbelianGroupFromOpp.
-  auto with typeclass_instances.
-Defined.
-Canonical Leaf_AbelianGroup := AbelianGroup.Pack _ Leaf_AbelianGroup_mixin (record pm_Leaf).
-
-Definition Leaf_Ring_mixin : Ring.mixin_of Leaf_AbelianGroup.
-  apply Ring.Mixin with
-    (mult := fun _ _ => pr_Leaf)
-    (one := pr_Leaf).
-  { reflexivity. }
-  { apply Leaf_unit. }
-  { apply Leaf_unit. }
-  { reflexivity. }
-  { reflexivity. }
-Defined.
-Canonical Leaf_Ring :=
-  Ring.Pack (record pm_Leaf) (Ring.Class _ _ Leaf_Ring_mixin) (record pm_Leaf).
-
-Definition Leaf_UniformSpace_mixin : UniformSpace.mixin_of (record pm_Leaf).
-  refine (UniformSpace.Mixin _ (fun _ _ _ => True) _ _ _); intros; exact I.
-Defined.
-Canonical Leaf_UniformSpace :=
-  UniformSpace.Pack (record pm_Leaf) Leaf_UniformSpace_mixin (record pm_Leaf).
-
-Definition Leaf_ModuleSpace_mixin (K : Ring) : ModuleSpace.mixin_of K Leaf_AbelianGroup.
-  apply ModuleSpace.Mixin with
-    (scal := fun _ _ => pr_Leaf).
-  { reflexivity. }
-  { apply Leaf_unit. }
-  { reflexivity. }
-  { reflexivity. }
-Defined.
-Definition Leaf_ModuleSpace_class_of (K : Ring) : ModuleSpace.class_of K (record pm_Leaf) :=
-  ModuleSpace.Class _ _ Leaf_AbelianGroup_mixin (Leaf_ModuleSpace_mixin _).
-Canonical Leaf_ModuleSpace (K : Ring) :=
-  ModuleSpace.Pack K (record pm_Leaf) (Leaf_ModuleSpace_class_of _) (record pm_Leaf).
-
-Definition Leaf_NormedModuleAux_class_of (K : AbsRing)
-  : NormedModuleAux.class_of K (record pm_Leaf) :=
-  NormedModuleAux.Class _ _ (Leaf_ModuleSpace_class_of _) Leaf_UniformSpace_mixin.
-Canonical Leaf_NormedModuleAux (K : AbsRing) :=
-  NormedModuleAux.Pack K (record pm_Leaf) (Leaf_NormedModuleAux_class_of _) (record pm_Leaf).
-
-Definition Leaf_NormedModule_mixin (K : AbsRing)
-  : NormedModule.mixin_of K (Leaf_NormedModuleAux _).
-  refine (NormedModule.Mixin _ _ (fun _ => R0) R1 _ _ _ _ _).
-  { intros. psatzl R. }
-  { intros. psatz R. }
-  { intros. unfold ball. simpl. exact I. }
-  { intros. destruct eps. simpl. psatz R. }
-  { intros. symmetry. apply Leaf_unit. }
-Defined.
-Definition Leaf_NormedModule_class_of (K : AbsRing)
-  : NormedModule.class_of K (record pm_Leaf) :=
-  NormedModule.Class _ _ (Leaf_NormedModuleAux_class_of _) (Leaf_NormedModule_mixin _).
-Canonical Leaf_NormedModule_class_of.
-Canonical Leaf_NormedModule (K : AbsRing) :=
-  NormedModule.Pack K (record pm_Leaf) (Leaf_NormedModule_class_of _) (record pm_Leaf).
-
-Section Branch_NormedModule.
-
-  Variable K : AbsRing.
+  Variable AR : AbsRing.
 
   Variable L R : fields.
-  Hypothesis L_NormedModule_class_of : NormedModule.class_of K (record L).
-  Hypothesis R_NormedModule_class_of : NormedModule.class_of K (record R).
+  Variable S : Type.
+  Hypothesis L_NormedModule_class_of : NormedModule.class_of AR (record L).
+  Hypothesis R_NormedModule_class_of : NormedModule.class_of AR (record R).
+  Hypothesis S_NormedModule_class_of : NormedModule.class_of AR S.
 
-  (*
-  Definition Branch_None_NormedModule_class_of (T : NormedModule K)
-    : Type.
-    refine (NormedModule.class_of K (record (pm_Branch L (@Some Type T) R))).
-  Defined.
-   *)
-  (*
-  Definition Branch_None_AbelianGroup_mixin :
-    AbelianGroup.mixin_of (record (pm_Branch L None R)).
-    eapply AbelianGroupFromOpp.
-    apply Opp_Branch_None.
-    auto with typeclass_instances.
-Defined.
+  Local Notation T := (record (pm_Branch L (Some S) R)) (only parsing).
 
-    intro o.
-    eapply AbelianGroup.Mixin.
-    try reflexivity. apply Leaf_unit.
+  Definition Branch_Some_plus : T -> T -> T.
+    intros a b.
+    dependent destruction a; dependent destruction b.
+    constructor.
+    { exact (AbelianGroup.plus _ L_NormedModule_class_of a1 b1). }
+    { exact (AbelianGroup.plus _ S_NormedModule_class_of y y0). }
+    { exact (AbelianGroup.plus _ R_NormedModule_class_of a2 b2). }
   Defined.
-  Canonical Leaf_AbelianGroup := AbelianGroup.Pack _ Leaf_AbelianGroup_mixin (record pm_Leaf).
-   *)
+
+  Definition Branch_Some_opp : T -> T.
+    intros x.
+    dependent destruction x.
+    constructor.
+    { exact (AbelianGroup.opp _ L_NormedModule_class_of x1). }
+    { exact (AbelianGroup.opp _ S_NormedModule_class_of y). }
+    { exact (AbelianGroup.opp _ R_NormedModule_class_of x2). }
+  Defined.
+
+  Definition Branch_Some_zero : T.
+    constructor.
+    { exact (AbelianGroup.zero _ L_NormedModule_class_of). }
+    { exact (AbelianGroup.zero _ S_NormedModule_class_of). }
+    { exact (AbelianGroup.zero _ R_NormedModule_class_of). }
+  Defined.
+
+  Definition Branch_Some_AbelianGroup_mixin : AbelianGroup.mixin_of T.
+    apply AbelianGroup.Mixin with
+      (plus := Branch_Some_plus)
+      (opp  := Branch_Some_opp)
+      (zero := Branch_Some_zero).
+    admit.
+    admit.
+    admit.
+    admit.
+  Admitted.
+  Canonical Branch_Some_AbelianGroup :=
+    AbelianGroup.Pack _ Branch_Some_AbelianGroup_mixin T.
+
+End Branch_Some_NormedModule.
+
+
+
+  Definition Branch_None_ModuleSpace_mixin (K : Ring)
+    : ModuleSpace.mixin_of K Branch_None_AbelianGroup.
+    apply ModuleSpace.Mixin with
+    (scal := fun _ _ => pr_Leaf).
+    { reflexivity. }
+    { apply Leaf_unit. }
+    { reflexivity. }
+    { reflexivity. }
+  Defined.
+  Definition Leaf_ModuleSpace_class_of (K : Ring)
+    : ModuleSpace.class_of K (record pm_Leaf) :=
+    ModuleSpace.Class _ _ Leaf_AbelianGroup_mixin (Leaf_ModuleSpace_mixin _).
+  Canonical Leaf_ModuleSpace (K : Ring) :=
+    ModuleSpace.Pack
+      K (record pm_Leaf) (Leaf_ModuleSpace_class_of _) (record pm_Leaf).
+
+  Definition Leaf_NormedModuleAux_class_of (K : AbsRing)
+    : NormedModuleAux.class_of K branchRecord :=
+    NormedModuleAux.Class
+      _ _ (Leaf_ModuleSpace_class_of _) Leaf_UniformSpace_mixin.
+  Canonical Leaf_NormedModuleAux (K : AbsRing) :=
+    NormedModuleAux.Pack
+      K (record pm_Leaf) (Leaf_NormedModuleAux_class_of _) (record pm_Leaf).
+
+  Definition Leaf_NormedModule_mixin (K : AbsRing)
+    : NormedModule.mixin_of K (Leaf_NormedModuleAux _).
+    refine (NormedModule.Mixin _ _ (fun _ => R0) R1 _ _ _ _ _).
+    { intros. psatzl R. }
+    { intros. psatz R. }
+    { intros. unfold ball. simpl. exact I. }
+    { intros. destruct eps. simpl. psatz R. }
+    { intros. symmetry. apply Leaf_unit. }
+  Defined.
+  Definition Leaf_NormedModule_class_of (K : AbsRing)
+    : NormedModule.class_of K (record pm_Leaf) :=
+    NormedModule.Class
+      _ _ (Leaf_NormedModuleAux_class_of _) (Leaf_NormedModule_mixin _).
+  Canonical Leaf_NormedModule_class_of.
+  Canonical Leaf_NormedModule (K : AbsRing) :=
+    NormedModule.Pack
+      K (record pm_Leaf) (Leaf_NormedModule_class_of _) (record pm_Leaf).
+
+  Definition Branch_None_NormedModule_class_of
+    : NormedModule.class_of K (record (pm_Branch L None R)) :=
+    NormedModule.Class
+      _ _ (Leaf_NormedModuleAux_class_of _) (Leaf_NormedModule_mixin _).
+  Canonical Leaf_NormedModule_class_of.
+  Canonical Leaf_NormedModule (K : AbsRing) :=
+    NormedModule.Pack
+      K (record pm_Leaf) (Leaf_NormedModule_class_of _) (record pm_Leaf).
 
 End Branch_NormedModule.
