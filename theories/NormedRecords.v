@@ -159,15 +159,18 @@ Section Branch_None_NormedModule.
   Hypothesis L_NormedModule_class_of : NormedModule.class_of AR (record l).
   Hypothesis R_NormedModule_class_of : NormedModule.class_of AR (record r).
 
+  Definition L_NormedModule := NormedModule.Pack _ _ L_NormedModule_class_of AR.
+  Definition R_NormedModule := NormedModule.Pack _ _ R_NormedModule_class_of AR.
+
   Local Notation T := (record (pm_Branch l None r)) (only parsing).
 
   Definition Branch_None_plus : T -> T -> T.
     intros a b.
     dependent destruction a; dependent destruction b.
     constructor.
-    { exact (AbelianGroup.plus _ L_NormedModule_class_of a1 b1). }
+    { exact (@plus L_NormedModule a1 b1). }
     { exact tt. }
-    { exact (AbelianGroup.plus _ R_NormedModule_class_of a2 b2). }
+    { exact (@plus R_NormedModule a2 b2). }
   Defined.
 
   Lemma simplify_plus_Branch_None:
@@ -177,9 +180,9 @@ Section Branch_None_NormedModule.
         (pr_Branch None l2 v2 r2) =
       pr_Branch
         None
-        (AbelianGroup.plus _ L_NormedModule_class_of l1 l2)
+        (@plus L_NormedModule l1 l2 : record l)
         tt
-        (AbelianGroup.plus _ R_NormedModule_class_of r1 r2).
+        (@plus R_NormedModule r1 r2 : record r).
   Proof.
     reflexivity.
   Qed.
@@ -188,9 +191,9 @@ Section Branch_None_NormedModule.
     intros x.
     dependent destruction x.
     constructor.
-    { exact (AbelianGroup.opp _ L_NormedModule_class_of x1). }
+    { exact (@opp L_NormedModule x1). }
     { exact tt. }
-    { exact (AbelianGroup.opp _ R_NormedModule_class_of x2). }
+    { exact (@opp R_NormedModule x2). }
   Defined.
 
   Lemma simplify_opp_Branch_None :
@@ -198,29 +201,30 @@ Section Branch_None_NormedModule.
       Branch_None_opp (pr_Branch None a v b)
       = pr_Branch
           None
-          (AbelianGroup.opp _ L_NormedModule_class_of a)
+          (@opp L_NormedModule a : record l)
           tt
-          (AbelianGroup.opp _ R_NormedModule_class_of b).
+          (@opp R_NormedModule b : record r).
   Proof.
-    destruct v.
     reflexivity.
   Qed.
 
   Definition Branch_None_zero : T.
     constructor.
-    { exact (AbelianGroup.zero _ L_NormedModule_class_of). }
+    { exact (@zero L_NormedModule). }
     { exact tt. }
-    { exact (AbelianGroup.zero _ R_NormedModule_class_of). }
+    { exact (@zero R_NormedModule). }
   Defined.
 
   Lemma simplify_zero_Branch_None :
     Branch_None_zero =
     pr_Branch
       None
-      (AbelianGroup.zero _ L_NormedModule_class_of)
+      (@zero L_NormedModule : record l)
       tt
-      (AbelianGroup.zero _ R_NormedModule_class_of).
-  Proof. reflexivity. Qed.
+      (@zero R_NormedModule : record r).
+  Proof.
+    reflexivity.
+  Qed.
 
   Definition Branch_None_AbelianGroup_mixin : AbelianGroup.mixin_of T.
     apply AbelianGroup.Mixin with
@@ -266,8 +270,8 @@ Section Branch_None_NormedModule.
   Definition Branch_None_ball : T -> R -> T -> Prop.
     intros a eps b.
     dependent destruction a; dependent destruction b.
-    pose proof (UniformSpace.ball _ L_NormedModule_class_of a1 eps b1) as P1.
-    pose proof (UniformSpace.ball _ R_NormedModule_class_of a2 eps b2) as P2.
+    pose proof (@ball L_NormedModule a1 eps b1) as P1.
+    pose proof (@ball R_NormedModule a2 eps b2) as P2.
     exact (P1 /\ P2).
   Defined.
 
@@ -279,9 +283,9 @@ Section Branch_None_NormedModule.
         (pr_Branch None l2 v2 r2)
       =
       (
-        UniformSpace.ball _ L_NormedModule_class_of l1 eps l2
+        @ball L_NormedModule l1 eps l2
         /\
-        UniformSpace.ball _ R_NormedModule_class_of r1 eps r2
+        @ball R_NormedModule r1 eps r2
       ).
   Proof.
     reflexivity.
@@ -302,17 +306,18 @@ Section Branch_None_NormedModule.
       intros a b eps.
       dependent destruction a; dependent destruction b.
       do 2 rewrite simplify_ball_Branch_None.
-      TODO.
       split.
-      { apply UniformSpace.ax1. }
-      { apply UniformSpace.ax1. }
+      { now apply UniformSpace.ax2. }
+      { now apply UniformSpace.ax2. }
     }
-
-      unfold Branch_None_ball.
-
+    {
+      intros a b c eps1 eps2.
+      dependent destruction a; dependent destruction b; dependent destruction c.
+      do 3 rewrite simplify_ball_Branch_None.
+      intuition.
+      { eapply UniformSpace.ax3; eauto. }
+      { eapply UniformSpace.ax3; eauto. }
     }
-    { intros. exact I. }
-    { intros. exact I. }
   Defined.
   Canonical Branch_None_UniformSpace :=
     UniformSpace.Pack T Branch_None_UniformSpace_mixin T.
@@ -322,12 +327,12 @@ Section Branch_None_NormedModule.
     dependent destruction b.
     apply pr_Branch.
     {
-      apply (ModuleSpace.scal _ _ L_NormedModule_class_of k).
+      apply (@scal _ L_NormedModule k).
       auto.
     }
     { exact tt. }
     {
-      apply (ModuleSpace.scal _ _ R_NormedModule_class_of k).
+      apply (@scal _ R_NormedModule k).
       auto.
     }
   Defined.
@@ -337,9 +342,9 @@ Section Branch_None_NormedModule.
       Branch_None_scal k (pr_Branch None l1 v r1)
       = pr_Branch
           None
-          (ModuleSpace.scal _ _ L_NormedModule_class_of k l1 : record l)
+          (@scal _ L_NormedModule k l1 : record l)
           tt
-          (ModuleSpace.scal _ _ R_NormedModule_class_of k r1 : record r).
+          (@scal _ R_NormedModule k r1 : record r).
   Proof.
     reflexivity.
   Qed.
@@ -410,39 +415,112 @@ Section Branch_None_NormedModule.
     unfold Branch_None_NormedModuleAux in b.
     simpl in b.
     dependent destruction b.
-    exact R0.
+    pose proof (@norm _ L_NormedModule b1) as n1.
+    pose proof (@norm _ R_NormedModule b2) as n2.
+    exact (sqrt (n1 ^ 2 + n2 ^ 2)).
   Defined.
+
+  Lemma simplify_norm_Branch_None:
+    forall (l1 : record l) (v : unit) (r1 : record r),
+      Branch_None_norm (pr_Branch None l1 v r1)
+      =
+      sqrt (
+          ((@norm _ L_NormedModule l1) ^ 2)
+          +
+          ((@norm _ R_NormedModule r1) ^ 2)
+        ).
+  Proof.
+    reflexivity.
+  Qed.
 
   Definition Branch_None_norm_factor : R.
-    exact R1.
+    pose proof (@norm_factor _ L_NormedModule) as nfl.
+    pose proof (@norm_factor _ R_NormedModule) as nfr.
+    exact (sqrt 2 * Rmax nfl nfr).
   Defined.
 
-    Definition Branch_None_NormedModule_mixin
-      : NormedModule.mixin_of K Branch_None_NormedModuleAux.
-      apply NormedModule.Mixin with
-        (norm        := Branch_None_norm)
-        (norm_factor := Branch_None_norm_factor).
-      { intros. unfold Branch_None_norm. psatzl R. }
-      { intros. unfold Branch_None_norm. psatz R. }
-      { intros. exact I. }
-      {
-        intros.
-        destruct eps.
-        unfold Branch_None_norm, Branch_None_norm_factor.
-        simpl.
-        psatz R.
-      }
-      { intros. symmetry. apply Branch_None_unit. }
-    Defined.
-    Definition Branch_None_NormedModule_class_of : NormedModule.class_of K T :=
-      NormedModule.Class
-        _ _ Branch_None_NormedModuleAux_class_of Branch_None_NormedModule_mixin.
-    Canonical Branch_None_NormedModule_class_of.
-    Canonical Branch_None_NormedModule :=
-      NormedModule.Pack
-        K T Branch_None_NormedModule_class_of T.
-
-  End Branch_None_AbsRing.
+  Definition Branch_None_NormedModule_mixin
+    : NormedModule.mixin_of AR Branch_None_NormedModuleAux.
+    apply NormedModule.Mixin with
+      (norm        := Branch_None_norm)
+      (norm_factor := Branch_None_norm_factor).
+    {
+      simpl.
+      intros a b.
+      dependent destruction a; dependent destruction b.
+      rewrite simplify_plus_Branch_None.
+      do 3 rewrite simplify_norm_Branch_None.
+      pose proof (@NormedModule.ax1 _ L_NormedModule L_NormedModule_class_of a1 b1) as L.
+      pose proof (@NormedModule.ax1 _ R_NormedModule R_NormedModule_class_of a2 b2) as R.
+      admit.
+    }
+    {
+      simpl.
+      intros k b.
+      dependent destruction b.
+      rewrite simplify_scal_Branch_None.
+      rewrite simplify_norm_Branch_None.
+      pose proof (@NormedModule.ax2 _ L_NormedModule L_NormedModule_class_of k b1) as L.
+      pose proof (@NormedModule.ax2 _ R_NormedModule R_NormedModule_class_of k b2) as R.
+      admit.
+    }
+    {
+      simpl.
+      intros a b eps.
+      dependent destruction a; dependent destruction b.
+      unfold minus.
+      rewrite simplify_opp_Branch_None.
+      rewrite simplify_plus_Branch_None.
+      rewrite simplify_norm_Branch_None.
+      pose proof (@NormedModule.ax3 _ L_NormedModule L_NormedModule_class_of a1 b1 eps) as L.
+      pose proof (@NormedModule.ax3 _ R_NormedModule R_NormedModule_class_of a2 b2 eps) as R.
+      admit.
+    }
+    {
+      simpl.
+      intros a b eps.
+      dependent destruction a; dependent destruction b.
+      rewrite simplify_ball_Branch_None.
+      intros [BL BR].
+      unfold minus.
+      rewrite simplify_opp_Branch_None.
+      rewrite simplify_plus_Branch_None.
+      rewrite simplify_norm_Branch_None.
+      pose proof (
+             @NormedModule.ax4 _ L_NormedModule L_NormedModule_class_of a1 b1 eps BL
+           ) as L.
+      pose proof (
+             @NormedModule.ax4 _ R_NormedModule R_NormedModule_class_of a2 b2 eps BR
+           ) as R.
+      unfold minus in *.
+      admit.
+    }
+    {
+      simpl.
+      intros b.
+      dependent destruction b.
+      rewrite simplify_norm_Branch_None.
+      intros H.
+      assert (@norm _ L_NormedModule b1 = 0) by admit.
+      assert (@norm _ R_NormedModule b2 = 0) by admit.
+      unfold zero.
+      simpl.
+      rewrite simplify_zero_Branch_None.
+      pose proof (@NormedModule.ax5 _ L_NormedModule L_NormedModule_class_of b1) as L.
+      pose proof (@NormedModule.ax5 _ R_NormedModule R_NormedModule_class_of b2) as R.
+      f_equal.
+      { now apply L. }
+      { now destruct y. }
+      { now apply R. }
+    }
+  Admitted.
+  Definition Branch_None_NormedModule_class_of : NormedModule.class_of AR T :=
+    NormedModule.Class
+      _ _ Branch_None_NormedModuleAux_class_of Branch_None_NormedModule_mixin.
+  Canonical Branch_None_NormedModule_class_of.
+  Canonical Branch_None_NormedModule :=
+    NormedModule.Pack
+      AR T Branch_None_NormedModule_class_of T.
 
 End Branch_None_NormedModule.
 
