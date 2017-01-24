@@ -4,5 +4,6 @@ Makefile.coq
 *.glob
 *.v.d
 *.aux
+.csdp.cache
 csdp.cache
 trace
