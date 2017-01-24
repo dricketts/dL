@@ -43,9 +43,11 @@ Section VelocityBound.
 
   Definition full_state := dL.state fields.
 
-  Axiom cstate_class_of : NormedModule.class_of R_AbsRing full_state.
+  Definition cstate_class_of : NormedModule.class_of R_AbsRing full_state :=
+    record_NormedModule_class_of fields.
   Canonical continuous_state : NormedModule R_AbsRing :=
     NormedModule.Pack R_AbsRing full_state cstate_class_of full_state.
+
   Instance PInst : ProjState fields continuous_state.
     apply Build_ProjState with
       (to_cstate := fun s => s)
@@ -160,52 +162,7 @@ Section VelocityBound.
             break_record.
             intuition.
           }
-          {
-            unfold D_state_val.
-            unfold get.
-            simpl.
-            intros.
-            unfold is_derive.
-            simpl.
-            unfold filterdiff.
-            set (r := D t !! 353%positive).
-            split.
-            {
-              constructor.
-              {
-                intros.
-                unfold scal.
-                simpl.
-                apply mult_distr_r.
-              }
-              {
-                intros.
-                unfold scal.
-                simpl.
-                now rewrite -> mult_assoc.
-              }
-              {
-                unfold scal.
-                simpl.
-                destruct H0 as [ [? ? [delta [? ?] ] ] ?].
-                exists delta.
-                split.
-                { intuition. }
-                {
-                  unfold scal in H1. simpl in H1.
-                  intros epsilon. specialize (H1 epsilon).
-                  unfold norm in H1. simpl in H1.
-                  unfold norm. simpl.
-                  unfold NormedModule.norm in H1.
-                  unfold NormedModule.mixin in H1.
-                  admit. (* need to actually specify cstate_class_of... *)
-                }
-              }
-            }
-            {
-              admit.
-            }
-          }
+          { apply D_state_val_var. }
           { prove_derive. }
           {
             simpl.
@@ -220,10 +177,8 @@ Section VelocityBound.
           unfold safe, continuous_safe.
           rewrite <- differential_induction_leq
           with (e1' := d["v"] : FlowVal continuous_state R).
-          {
-            admit.
-          }
           { admit. }
+          { apply D_state_val_var. }
           { prove_derive. }
           {
             simpl.
@@ -244,28 +199,31 @@ Section VelocityBound.
         {
           rewrite <- differential_induction_leq
           with (e2' := d["a"] : FlowVal continuous_state R).
-          {
-            breakAbstraction; intros; psatzl R.
-          }
+          { breakAbstraction; intros; psatzl R. }
           { prove_derive. }
-          { admit. }
-          {
-            breakAbstraction; intros; psatzl R.
-          }
+          { apply D_state_val_var. }
+          { breakAbstraction; intros; psatzl R. }
         }
         {
           rewrite <- differential_cut
-          with (C := get "v" [+] get "a"[*] (pure d [-] get "t") [<=] pure V).
+          with (C := get "v" [+] get "a"[*] (pure d [-] get "t") [<=] pure V
+                    : StateProp continuous_state).
           repeat rewrite Subst_land.
           charge_split.
-          { diff_ind.
-            (* This goal requires non-linear arithmetic,
-               so we use a foundational non-linear decision
-               procedure. In the future, we will call better
-               decision procedures such as Z3. *)
-            breakAbstraction.
-            intros.
-            psatz R. }
+          {
+            diff_ind.
+            { apply D_state_val_var. }
+            { apply D_state_val_var. }
+            { apply D_state_val_var. }
+            {
+              (* This goal requires non-linear arithmetic,
+                 so we use a foundational non-linear decision
+                 procedure. In the future, we will call better
+                 decision procedures such as Z3. *)
+              breakAbstraction.
+              intros.
+              psatz R. }
+          }
           { rewrite <- differential_weakening'.
             charge_clear.
             do 2 rewrite <- Subst_ltrue.
@@ -277,7 +235,5 @@ Section VelocityBound.
             psatz R. } } } }
     { reflexivity. }
   Qed.
-
-
 
 End VelocityBound.
