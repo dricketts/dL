@@ -665,19 +665,12 @@ Section DVars.
     NormedModule.Pack
       R_AbsRing cstate record_NormedModule_class_of cstate.
 
-  (*
-  Lemma norm_record_bound (cs : cstate) (v : var) {FO : FieldOf cvars v R}
-    : norm (@Rget _ cs v R (@_field_proof cvars v R FO)) <= norm cs.
+  Lemma norm_record_bound
+        (cs : cstate) (v : var) FG
+    : norm (@Rget _ cs v R FG) <= norm cs.
   Proof.
-    set (csv := (@Rget _ cs v R (@_field_proof cvars v R FO))).
-    dependent destruction cs.
-    unfold norm.
-    simpl.
-    unfold record_NormedModule_class_of.
-    dependent induction cs.
-    simpl.
-  Qed.
-   *)
+    admit.
+  Admitted.
 
   Theorem D_state_val_var :
     forall (x : var) {FO : FieldOf cvars x R},
@@ -713,6 +706,8 @@ Section DVars.
         specialize (B x0).
         rewrite norm_scal.
         rewrite <- B.
+
+
 
         (* Here we'd need something like norm dtx <= norm (D t) *)
         admit.
