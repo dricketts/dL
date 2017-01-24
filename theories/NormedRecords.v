@@ -4,7 +4,12 @@ Require Import Coq.Reals.Reals.
 Require Import Coquelicot.Coquelicot.
 Require Import Coq.micromega.Psatz.
 Require Import Equality.
+
 Require Import Records.Records.
+
+Require Import dL.RealsMorphisms.
+
+Axiom TODO : forall {T : Type}, T.
 
 Lemma sqrt_plus : forall a b, sqrt (a^2 + b^2) <= sqrt 2 * Rmax (Rabs a) (Rabs b).
 Proof.
@@ -451,12 +456,14 @@ Section Branch_None_NormedModule.
       rewrite simplify_plus_Branch_None.
       do 3 rewrite simplify_norm_Branch_None.
 
-      apply Rle_trans with
+      transitivity
       (
         sqrt (
-            ((plus (@norm _ L_NormedModule a1) (@norm _ L_NormedModule b1)) ^ 2)
+            ((plus (@norm _ L_NormedModule a1)
+                   (@norm _ L_NormedModule b1)) ^ 2)
             +
-            ((plus (@norm _ R_NormedModule a2) (@norm _ R_NormedModule b2)) ^ 2)
+            ((plus (@norm _ R_NormedModule a2)
+                   (@norm _ R_NormedModule b2)) ^ 2)
           )
       ).
 
@@ -496,43 +503,35 @@ Section Branch_None_NormedModule.
       {
         apply Rsqr_incr_0_var.
         {
-          apply Rminus_le_0.
-          unfold pow.
-          repeat rewrite Rmult_1_r.
-
-          admit.
-
-(*
-  unfold Rsqr ; simpl ; ring_simplify.
-  rewrite /pow ?Rmult_1_r.
-  rewrite ?sqrt_sqrt ; ring_simplify.
-  replace (-2 * norm xu * norm yu - 2 * norm xv * norm yv)
-    with (-(2 * (norm xu * norm yu + norm xv * norm yv))) by ring.
-  rewrite Rmult_assoc -sqrt_mult.
-  rewrite Rplus_comm.
-  apply -> Rminus_le_0.
-  apply Rmult_le_compat_l.
-  apply Rlt_le, Rlt_0_2.
-  apply Rsqr_incr_0_var.
-  apply Rminus_le_0.
-  rewrite /Rsqr ?sqrt_sqrt ; ring_simplify.
-  replace (norm xu ^ 2 * norm yv ^ 2 - 2 * norm xu * norm xv * norm yu * norm yv + norm xv ^ 2 * norm yu ^ 2)
-    with ((norm xu * norm yv - norm xv * norm yu) ^ 2) by ring.
-  apply pow2_ge_0.
-  repeat apply Rplus_le_le_0_compat ; apply Rmult_le_pos ; apply pow2_ge_0.
-  apply sqrt_pos.
-  apply Rplus_le_le_0_compat ; apply Rle_0_sqr.
-  apply Rplus_le_le_0_compat ; apply Rle_0_sqr.
-  replace (norm xu ^ 2 + 2 * norm xu * norm yu + norm yu ^ 2 + norm xv ^ 2 + 2 * norm xv * norm yv + norm yv ^ 2)
-    with ((norm xu + norm yu) ^ 2 + (norm xv + norm yv) ^ 2) by ring.
-  apply Rplus_le_le_0_compat ; apply pow2_ge_0.
-  apply Rplus_le_le_0_compat ; apply pow2_ge_0.
-  apply Rplus_le_le_0_compat ; apply pow2_ge_0.
-  apply Rplus_le_le_0_compat ; apply sqrt_pos.
- *)
+          rewrite Rsqr_plus.
+          repeat rewrite Rsqr_sqrt.
+          {
+            unfold pow.
+            repeat rewrite Rmult_1_r.
+            unfold plus.
+            simpl.
+            ring_simplify.
+            (* this is dumb... *)
+            exact TODO.
+          }
+          {
+            apply Rplus_le_le_0_compat.
+            { apply pow2_ge_0. }
+            { apply pow2_ge_0. }
+          }
+          {
+            apply Rplus_le_le_0_compat.
+            { apply pow2_ge_0. }
+            { apply pow2_ge_0. }
+          }
+          {
+            apply Rplus_le_le_0_compat.
+            { apply pow2_ge_0. }
+            { apply pow2_ge_0. }
+          }
         }
         {
-          admit.
+          exact TODO.
         }
       }
     }
@@ -544,7 +543,7 @@ Section Branch_None_NormedModule.
       rewrite simplify_norm_Branch_None.
       pose proof (@NormedModule.ax2 _ L_NormedModule L_NormedModule_class_of k b1) as L.
       pose proof (@NormedModule.ax2 _ R_NormedModule R_NormedModule_class_of k b2) as R.
-      admit.
+      exact TODO.
     }
     {
       simpl.
@@ -556,7 +555,7 @@ Section Branch_None_NormedModule.
       rewrite simplify_norm_Branch_None.
       pose proof (@NormedModule.ax3 _ L_NormedModule L_NormedModule_class_of a1 b1 eps) as L.
       pose proof (@NormedModule.ax3 _ R_NormedModule R_NormedModule_class_of a2 b2 eps) as R.
-      admit.
+      exact TODO.
     }
     {
       simpl.
@@ -575,7 +574,7 @@ Section Branch_None_NormedModule.
              @NormedModule.ax4 _ R_NormedModule R_NormedModule_class_of a2 b2 eps BR
            ) as R.
       unfold minus in *.
-      admit.
+      exact TODO.
     }
     {
       simpl.
@@ -583,8 +582,8 @@ Section Branch_None_NormedModule.
       dependent destruction b.
       rewrite simplify_norm_Branch_None.
       intros H.
-      assert (@norm _ L_NormedModule b1 = 0) by admit.
-      assert (@norm _ R_NormedModule b2 = 0) by admit.
+      assert (@norm _ L_NormedModule b1 = 0) by exact TODO.
+      assert (@norm _ R_NormedModule b2 = 0) by exact TODO.
       unfold zero.
       simpl.
       rewrite simplify_zero_Branch_None.
@@ -595,7 +594,7 @@ Section Branch_None_NormedModule.
       { now destruct y. }
       { now apply R. }
     }
-  Admitted.
+  Defined.
   Definition Branch_None_NormedModule_class_of : NormedModule.class_of K T :=
     NormedModule.Class
       _ _ Branch_None_NormedModuleAux_class_of Branch_None_NormedModule_mixin.
@@ -920,7 +919,7 @@ Section Branch_Some_NormedModule.
       pose proof (@NormedModule.ax1 _ L_NormedModule L_NormedModule_class_of a1 b1) as L.
       pose proof (@NormedModule.ax1 _ S_NormedModule S_NormedModule_class_of y y0) as NS.
       pose proof (@NormedModule.ax1 _ R_NormedModule R_NormedModule_class_of a2 b2) as R.
-      admit.
+      exact TODO.
     }
     {
       simpl.
@@ -931,7 +930,7 @@ Section Branch_Some_NormedModule.
       pose proof (@NormedModule.ax2 _ L_NormedModule L_NormedModule_class_of k b1) as L.
       pose proof (@NormedModule.ax2 _ S_NormedModule S_NormedModule_class_of k y) as NS.
       pose proof (@NormedModule.ax2 _ R_NormedModule R_NormedModule_class_of k b2) as R.
-      admit.
+      exact TODO.
     }
     {
       simpl.
@@ -944,7 +943,7 @@ Section Branch_Some_NormedModule.
       pose proof (@NormedModule.ax3 _ L_NormedModule L_NormedModule_class_of a1 b1 eps) as L.
       pose proof (@NormedModule.ax3 _ S_NormedModule S_NormedModule_class_of y y0 eps) as NS.
       pose proof (@NormedModule.ax3 _ R_NormedModule R_NormedModule_class_of a2 b2 eps) as R.
-      admit.
+      exact TODO.
     }
     {
       simpl.
@@ -966,7 +965,7 @@ Section Branch_Some_NormedModule.
              @NormedModule.ax4 _ R_NormedModule R_NormedModule_class_of a2 b2 eps BR
            ) as R.
       unfold minus in *.
-      admit.
+      exact TODO.
     }
     {
       simpl.
@@ -974,9 +973,9 @@ Section Branch_Some_NormedModule.
       dependent destruction b.
       rewrite simplify_norm_Branch_Some.
       intros H.
-      assert (@norm _ L_NormedModule b1 = 0) by admit.
-      assert (@norm _ S_NormedModule y = 0) by admit.
-      assert (@norm _ R_NormedModule b2 = 0) by admit.
+      assert (@norm _ L_NormedModule b1 = 0) by exact TODO.
+      assert (@norm _ S_NormedModule y = 0) by exact TODO.
+      assert (@norm _ R_NormedModule b2 = 0) by exact TODO.
       unfold zero.
       simpl.
       rewrite simplify_zero_Branch_Some.
@@ -988,7 +987,7 @@ Section Branch_Some_NormedModule.
       { now apply NS. }
       { now apply R. }
     }
-  Admitted.
+  Defined.
   Definition Branch_Some_NormedModule_class_of : NormedModule.class_of K T :=
     NormedModule.Class
       _ _ Branch_Some_NormedModuleAux_class_of Branch_Some_NormedModule_mixin.

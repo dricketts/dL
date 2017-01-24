@@ -10,11 +10,15 @@ Require Import Coq.Logic.FunctionalExtensionality.
  **)
 Require Import Coq.Logic.ClassicalFacts.
 Require Import Coq.Classes.Morphisms.
+
 Require Import ChargeCore.Logics.ILogic.
 Require Import ChargeCore.Tactics.Tactics.
 Require Import Records.Records.
+
 Require Import dL.Logics.
+Require Import dL.RealsMorphisms.
 Require Import dL.RecordsFacts.
+
 Local Transparent ILInsts.ILFun_Ops.
 
 Local Open Scope R.
@@ -50,7 +54,8 @@ Section dL.
    ** Writing [get "x"] is the equivalent of writing
    ** x in dL. A proper interface should hide this.
    **)
-  Definition get (x : var) {T : Type} {pf : FieldOf vars x T} : StateVal state T :=
+  Definition get (x : var) {T : Type} {pf : FieldOf vars x T}
+    : StateVal state T :=
     mkStateVal (fun st => Rget st x pf.(_field_proof)).
 
   (** This begins the core definitions for hybrid programs.
@@ -154,13 +159,16 @@ Section dL.
   Definition box (a : ActionProp state) (s : StateProp state) : StateProp state :=
     mkStateVal (fun st => forall st', a st st' -> s st').
 
-  Notation "'[[' a ']]' p" := (box a p) (at level 70, p at next level, a at level 0).
+  Notation "'[[' a ']]' p" :=
+    (box a p) (at level 70, p at next level, a at level 0).
 
   (** Diamond *)
-  Definition diamond (a : ActionProp state) (s : StateProp state) : StateProp state :=
+  Definition diamond (a : ActionProp state) (s : StateProp state)
+    : StateProp state :=
     mkStateVal (fun st => exists st', a st st' /\ s st').
 
-  Notation "'<<' a '>>' p" := (diamond a p) (at level 70, p at next level, a at level 0).
+  Notation "'<<' a '>>' p" :=
+    (diamond a p) (at level 70, p at next level, a at level 0).
   Notation "! p" := (p -->> lfalse) (at level 30, p at level 30).
   (** NOTE: In constructive logic (like Coq) negation is defined to be
    ** "implies false".
@@ -531,7 +539,7 @@ Qed.
  ** a new goal |-- [[a]](P //\\ R). This is closely related to the
  ** contextual proof rules of dL.
  **
- ** The following instance declarations allow us to perform this
+ ** The following instance declarations allow us to perform thisq
  ** rewriting in particular contexts. Many more are possible, but
  ** this collection of definitions are the only ones necessary to
  ** the example below.
@@ -564,9 +572,31 @@ Qed.
 
 End dL.
 
-Section DVars.
+Require Import dL.NormedRecords.
+
+(*
+Section BreakConversion.
 
   Variable cvars : fields.
+
+  Set Universe Polymorphism.
+  Set Printing Universes.
+
+  Section poly.
+    Universe U.
+
+    Inductive record : fields -> Type :=
+    | pr_Leaf : record pm_Leaf
+    | pr_Branch : forall L R (V : option Type@{U}),
+        record L ->
+        match V return Type@{U} with
+        | None => unit
+        | Some t => t
+        end ->
+        record R ->
+        record (pm_Branch L V R).
+
+  End poly.
 
   Definition cstate : Type := record cvars.
 
@@ -578,9 +608,81 @@ Section DVars.
       R_AbsRing cstate
       (record_NormedModule_class_of cvars) cstate.
 
+  Lemma testing :
+    forall (cs : continuous_state)
+      (f : forall {fs}, record fs -> R),
+      f cs = 0.
+
+End BreakConversion.
+ *)
+
+Fixpoint record_all (fs : fields) (H : Type -> Type) : Type :=
+  match fs with
+  | pm_Leaf => True
+  | pm_Branch l o r =>
+    record_all l H
+    *
+    match o with
+    | None => True
+    | Some T => H T
+    end
+    *
+    record_all r H
+  end.
+
+Definition HasRealNorm (T : Type) := NormedModule.class_of R_AbsRing T.
+
+Fixpoint make_record_NormedModule_class_of (fs : fields) :
+  record_all fs HasRealNorm ->
+  NormedModule.class_of R_AbsRing (record fs).
+  intros RA.
+  destruct fs.
+  { apply Leaf_NormedModule_class_of. }
+  {
+    destruct RA as [[? ?] ?].
+    destruct o.
+    {
+      apply Branch_Some_NormedModule_class_of; now auto.
+    }
+    {
+      apply Branch_None_NormedModule_class_of; now auto.
+    }
+  }
+Defined.
+
+Section DVars.
+
+  Variable cvars : fields.
+
+  Definition cstate : Type := record cvars.
+
+  Axiom cvars_RealNorm : record_all cvars HasRealNorm.
+
+  Definition record_NormedModule_class_of :=
+    make_record_NormedModule_class_of cvars cvars_RealNorm.
+
+  Canonical cstate_NormedModule : NormedModule R_AbsRing :=
+    NormedModule.Pack
+      R_AbsRing cstate record_NormedModule_class_of cstate.
+
+  (*
+  Lemma norm_record_bound (cs : cstate) (v : var) {FO : FieldOf cvars v R}
+    : norm (@Rget _ cs v R (@_field_proof cvars v R FO)) <= norm cs.
+  Proof.
+    set (csv := (@Rget _ cs v R (@_field_proof cvars v R FO))).
+    dependent destruction cs.
+    unfold norm.
+    simpl.
+    unfold record_NormedModule_class_of.
+    dependent induction cs.
+    simpl.
+  Qed.
+   *)
+
   Theorem D_state_val_var :
     forall (x : var) {FO : FieldOf cvars x R},
-      D_state_val continuous_state (get x) (mkFlowVal (fun _ st' => get x st')).
+      D_state_val
+        cstate_NormedModule (get x) (mkFlowVal (fun _ st' => get x st')).
   Proof.
     intros x FO F D t ID.
     simpl in *.
@@ -608,11 +710,18 @@ Section DVars.
         destruct ID as [[_ _ [M [A B]]] _].
         exists M.
         intuition.
-        unfold scal in B; simpl in B.
-        unfold ModuleSpace.scal in B.
-        unfold ModuleSpace.mixin in B.
-        intros.
-  Qed.
+        specialize (B x0).
+        rewrite norm_scal.
+        rewrite <- B.
+
+        (* Here we'd need something like norm dtx <= norm (D t) *)
+        admit.
+      }
+    }
+    {
+      admit.
+    }
+  Admitted.
 
 End DVars.
 

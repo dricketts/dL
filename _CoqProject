@@ -1,8 +1,10 @@
 -Q theories dL
 -Q examples Examples
 
-./theories/Logics.v
 ./theories/dL.v
+./theories/NormedRecords.v
+./theories/Logics.v
+./theories/RealsMorphisms.v
 ./theories/RecordsFacts.v
 
 ./examples/Velocity.v

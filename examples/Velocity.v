@@ -253,7 +253,8 @@ Section VelocityBound.
             breakAbstraction; intros; psatzl R.
           }
         }
-        { rewrite <- differential_cut
+        {
+          rewrite <- differential_cut
           with (C := get "v" [+] get "a"[*] (pure d [-] get "t") [<=] pure V).
           repeat rewrite Subst_land.
           charge_split.
